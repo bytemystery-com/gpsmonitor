@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Remote debug",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "debugAdapter": "legacy",
+            "remotePath": "${config:remoteFolder}",
+            "port": 2345,
+            "host": "${config:remoteHost}",
+            "preLaunchTask": "debug-remote",
+            "postDebugTask": "stop-remote-debug"        }
+    ]
+}

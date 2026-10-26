@@ -1,0 +1,8 @@
+{
+    "remoteHost": "192.168.0.183",
+    "remoteFolder": "/home/psyst/sertest",
+    "remoteUser": "psyst",
+    "remotePass": "psyst",
+    "program": "sertest"
+}
+

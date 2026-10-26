@@ -1,0 +1,7 @@
+• Rot (VCC): 5V Power (Pin 2 oder Pin 4 am Raspberry Pi 5)
+• Schwarz (GND): GND / Masse (Pin 6)
+• Orange (RX): Kommt an TX vom GPS-Modul (Pi empfängt)
+• Braun (TX): Kommt an RX vom GPS-Modul (Pi sendet)
+
+• Orange: RX (Pin 10 / GPIO 15) → kommt an TX vom GPS
+• Braun: TX (Pin 8 / GPIO 14) → kommt an RX vom GPS
