@@ -9,6 +9,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -64,8 +66,8 @@ type GGA struct {
 	NumSats       int
 	HDop          float32
 	Altitude      float32
-	AltSep        float32
-	DiffAge       float32
+	AltSep        float32 // Unterschied von Meereshöe zu Ellipsoid
+	DiffAge       float32 // Alter der Korrekturdaten
 	DiffStationId int
 }
 
@@ -146,6 +148,18 @@ type TXT struct {
 	Txt      string
 }
 
+type GST struct {
+	TalkerId     string
+	Time         time.Time
+	Rms          float32 // Rms von Satelitten
+	StdMajor     float32 // Fehlerellipse - grosse Achse
+	StdMinor     float32 // Fehlerellipse - kleine Achse
+	Orientation  float32 // Fehlerellipse - Orientierung
+	StdLatitude  float32
+	StdLongitude float32
+	StdAltitude  float32
+}
+
 func (g *GGA) Print() {
 	log.Printf("GGA")
 	log.Printf("  ID            : %s", g.TalkerId)
@@ -157,6 +171,8 @@ func (g *GGA) Print() {
 	log.Printf("  NumSats       : %d", g.NumSats)
 	log.Printf("  HDop          : %.2f", g.HDop)
 	log.Printf("  DiffStationId : %d", g.DiffStationId)
+	log.Printf("  Maps          : %s", GetGoogleMapsLink(g.Latitude, g.Longitude))
+	log.Printf("  Earth         : %s", GetGoogleEarthLink(g.Latitude, g.Longitude))
 }
 
 func (r *RMC) Print() {
@@ -235,11 +251,72 @@ func (g *GSV) Print() {
 	log.Printf("  SignalID    : %d", g.SignalId)
 }
 
+func (g *GST) Print() {
+	log.Printf("GST")
+	log.Printf("  ID           : %s", g.TalkerId)
+	log.Printf("  Time         : %v", g.Time)
+	log.Printf("  Rms          : %.3f", g.Rms)
+	log.Printf("  StdMajor     : %.3f", g.StdMajor)
+	log.Printf("  StdMinor     : %.3f", g.StdMinor)
+	log.Printf("  Orientation  : %.3f", g.Orientation)
+	log.Printf("  StdLatitude  : %.3f", g.StdLatitude)
+	log.Printf("  StdLongitude : %.3f", g.StdLongitude)
+	log.Printf("  StdAltitude  : %.3f", g.StdAltitude)
+}
+
+type GPSNetwork int
+
+const (
+	NetworkUnknown GPSNetwork = iota
+	NetworkGPS
+	NetworkGLONASS
+	NetworkGalileo
+	NetworkBeiDou
+	NetworkQZSS
+)
+
+type SatKey struct {
+	Network GPSNetwork
+	Id      int
+}
+
+type SatInfo struct {
+	Network GPSNetwork
+	SatDataDetail
+	SignalID   int
+	Used       bool
+	LastUpdate time.Time
+}
+
+type GpsData struct {
+	Time          atomic.Value  // time.Time
+	Latitude      atomic.Uint64 // float64
+	Longitude     atomic.Uint64 // float64
+	Altitude      atomic.Uint32 // float32
+	Speed         atomic.Uint32 // float32
+	CourseTrue    atomic.Uint32 // float32
+	MagVar        atomic.Uint32 // float32
+	Quality       atomic.Uint32 // Quality
+	NavMode       atomic.Uint32 // NavMode
+	NumSats       atomic.Uint32 // int
+	HDop          atomic.Uint32 // float32
+	VDop          atomic.Uint32 // float32
+	PDop          atomic.Uint32 // float32
+	AltSep        atomic.Uint32 // float32 // Unterschied von Meereshöe zu Ellipsoid
+	DiffAge       atomic.Uint32 // float32 // Alter der Korrekturdaten
+	DiffStationId atomic.Uint32 // int
+}
+
 type Gps struct {
 	Messages []any
 	reader   io.Reader
 	writer   io.Writer
 	notify   chan<- any
+
+	satInfos map[SatKey]SatInfo
+	InfoLock sync.RWMutex
+
+	GpsData GpsData
 }
 
 func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
@@ -247,6 +324,7 @@ func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
 		Messages: make([]any, 0, 100),
 		reader:   reader,
 		writer:   writer,
+		satInfos: make(map[SatKey]SatInfo, 20),
 	}, nil
 }
 
@@ -342,6 +420,46 @@ func (gps *Gps) verifyNmeaChecksum(s string) ([]string, error) {
 		return nil, fmt.Errorf("checksum mismatch %v / %v", c, cSum)
 	}
 	return sArray, nil
+}
+
+func (gps *Gps) StoreFloat64InAtomic(v float64, a *atomic.Uint64) {
+	if math.IsNaN(v) {
+		return
+	}
+	a.Store(math.Float64bits(v))
+}
+
+func (gps *Gps) StoreFloat32InAtomic(v float32, a *atomic.Uint32) {
+	if math.IsNaN(float64(v)) {
+		return
+	}
+	a.Store(math.Float32bits(v))
+}
+
+func (gps *Gps) StoreIntInAtomic(v int, a *atomic.Uint32) {
+	if v < 0 {
+		return
+	}
+	a.Store(uint32(v))
+}
+
+func (gps *Gps) StoreTimeInAtomic(v time.Time, a *atomic.Value) {
+	if v.IsZero() {
+		return
+	}
+	a.Store(v)
+}
+
+func (gps *Gps) LoadTimeFromAtomic(a *atomic.Value) time.Time {
+	var td time.Time
+	v := a.Load()
+	if v != nil {
+		t, ok := v.(time.Time)
+		if ok {
+			td = t
+		}
+	}
+	return td
 }
 
 func (gps *Gps) parseGGA(sArray []string) (*GGA, error) {
@@ -593,6 +711,46 @@ func (gps *Gps) parseTXT(sArray []string) (*TXT, error) {
 	return &t, nil
 }
 
+func (gps *Gps) parseGST(sArray []string) (*GST, error) {
+	l := len(sArray)
+	if l != 9 {
+		return nil, fmt.Errorf("unexpected number of fields")
+	}
+	g := GST{
+		TalkerId: sArray[0][1:3],
+	}
+
+	t, err := time.Parse("150405.00", sArray[1])
+	if err == nil {
+		g.Time = t
+	}
+
+	g.Rms = gps.parseFloat32(sArray[2])
+
+	g.StdMajor = gps.parseFloat32(sArray[3])
+
+	g.StdMinor = gps.parseFloat32(sArray[4])
+
+	g.Orientation = gps.parseFloat32(sArray[5])
+
+	g.StdLatitude = gps.parseFloat32(sArray[6])
+
+	g.StdLongitude = gps.parseFloat32(sArray[7])
+
+	g.StdAltitude = gps.parseFloat32(sArray[8])
+
+	return &g, nil
+}
+
+func (gps *Gps) appendMessage(msg any) {
+	if len(gps.Messages) < cap(gps.Messages) {
+		gps.Messages = append(gps.Messages, msg)
+	} else {
+		copy(gps.Messages, gps.Messages[1:])
+		gps.Messages[len(gps.Messages)-1] = msg
+	}
+}
+
 func (gps *Gps) parseNmea(line string) {
 	// log.Printf("Line: %s", line)
 	sArray, err := gps.verifyNmeaChecksum(line)
@@ -604,50 +762,70 @@ func (gps *Gps) parseNmea(line string) {
 	case "GGA":
 		gga, err := gps.parseGGA(sArray)
 		if err == nil {
-			gps.Messages = append(gps.Messages, gga)
+			gps.appendMessage(gga)
+			t := gps.LoadTimeFromAtomic(&gps.GpsData.Time)
+			t = time.Date(t.Year(), t.Month(), t.Day(), gga.Time.Hour(), gga.Time.Minute(), gga.Time.Second(), gga.Time.Nanosecond(), time.UTC)
+			gps.StoreTimeInAtomic(t, &gps.GpsData.Time)
+			gps.StoreFloat64InAtomic(gga.Latitude, &gps.GpsData.Latitude)
+			gps.StoreFloat64InAtomic(gga.Longitude, &gps.GpsData.Longitude)
+			gps.StoreIntInAtomic(int(gga.Quality), &gps.GpsData.Quality)
+			gps.StoreIntInAtomic(gga.NumSats, &gps.GpsData.NumSats)
+			gps.StoreFloat32InAtomic(gga.HDop, &gps.GpsData.HDop)
+			gps.StoreFloat32InAtomic(gga.Altitude, &gps.GpsData.Altitude)
+			gps.StoreFloat32InAtomic(gga.AltSep, &gps.GpsData.AltSep)
+			gps.StoreFloat32InAtomic(gga.DiffAge, &gps.GpsData.DiffAge)
+			gps.StoreIntInAtomic(gga.DiffStationId, &gps.GpsData.DiffStationId)
+
 			gps.SendNotify(gga)
 		}
 
 	case "RMC":
 		rmc, err := gps.parseRMC(sArray)
 		if err == nil {
-			gps.Messages = append(gps.Messages, rmc)
+			gps.appendMessage(rmc)
 			gps.SendNotify(rmc)
 		}
 
 	case "GLL":
 		gll, err := gps.parseGLL(sArray)
 		if err == nil {
-			gps.Messages = append(gps.Messages, gll)
+			gps.appendMessage(gll)
 			gps.SendNotify(gll)
 		}
 
 	case "GSA":
 		gsa, err := gps.parseGSA(sArray)
 		if err == nil {
-			gps.Messages = append(gps.Messages, gsa)
+			gps.appendMessage(gsa)
 			gps.SendNotify(gsa)
 		}
 
 	case "VTG":
 		vtg, err := gps.parseVTG(sArray)
 		if err == nil {
-			gps.Messages = append(gps.Messages, vtg)
+			gps.appendMessage(vtg)
 			gps.SendNotify(vtg)
 		}
 
 	case "GSV":
 		gsv, err := gps.parseGSV(sArray)
 		if err == nil {
-			gps.Messages = append(gps.Messages, gsv)
+			gps.appendMessage(gsv)
 			gps.SendNotify(gsv)
 		}
 
 	case "TXT":
 		txt, err := gps.parseTXT(sArray)
 		if err == nil {
-			gps.Messages = append(gps.Messages, txt)
+			gps.appendMessage(txt)
 			gps.SendNotify(txt)
+		}
+
+	case "GST":
+		gst, err := gps.parseGST(sArray)
+		if err == nil {
+			gps.appendMessage(gst)
+			gps.SendNotify(gst)
 		}
 
 	default:
@@ -664,15 +842,48 @@ func (gps *Gps) ubxChecksum(data []byte) (byte, byte) {
 	return ckA, ckB
 }
 
+func (gps *Gps) SendUBXConfig(layer byte, key uint32, value byte) error {
+	// 1. Payload vorbereiten (9 Bytes)
+	payload := make([]byte, 9)
+	payload[0] = 0x00            // Version
+	payload[1] = layer           // 0x01 = RAM, 0x07 = Flash
+	payload[2] = 0x00            // Reserviert
+	payload[3] = 0x00            // Reserviert
+	payload[4] = byte(key)       // Key Byte 0 (Little Endian)
+	payload[5] = byte(key >> 8)  // Key Byte 1
+	payload[6] = byte(key >> 16) // Key Byte 2
+	payload[7] = byte(key >> 24) // Key Byte 3
+	payload[8] = value           // Der eigentliche Wert (z.B. 43 für NMEA 4.11)
+
+	// 2. Header vorbereiten (6 Bytes)
+	header := []byte{
+		0xB5, 0x62, // Sync Chars
+		0x06, 0x8A, // Class (0x06) & ID (0x8A) für UBX-CFG-VALSET
+		byte(len(payload)), byte(len(payload) >> 8), // Länge der Payload (9)
+	}
+
+	// 3. Komplettes Paket zusammensetzen
+	packet := append(header, payload...)
+
+	cka, ckb := gps.ubxChecksum(packet[2:])
+
+	// Prüfsummen-Bytes anhängen
+	packet = append(packet, cka, ckb)
+
+	// 5. Paket über deinen UART-Writer abschicken
+	_, err := gps.writer.Write(packet)
+	return err
+}
+
 func (gps *Gps) Sart(notify chan<- any) {
 	gps.notify = notify
 	reader := bufio.NewReader(gps.reader)
-	/*
-		data := []byte{0xB5, 0x62, 0x06, 0x8B, 0x08, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x93, 0x20, 0x4E, 0xE3}
-		ckA, ckB := gps.ubxChecksum(data)
-		packet := append(data, ckA, ckB)
-		gps.writer.Write(packet)
-	*/
+	gps.SendUBXConfig(0x01, 0x20930001, 41) // NMEA 4.11
+	gps.SendUBXConfig(0x01, 0x209100d4, 1)  // GST einschalten
+	gps.SendUBXConfig(0x01, 0x20910087, 1)  // TXT einschalten
+	// gps.SendUBXConfig(0x01, 0x209100b2, 1)  // GNS einschalten ???
+	gps.SendUBXConfig(0x01, 0x209100b7, 1) // VTG einschalten
+
 	for {
 		b, err := reader.ReadByte()
 		if err != nil {
@@ -734,4 +945,13 @@ func (gps *Gps) Sart(notify chan<- any) {
 			}
 		}
 	}
+}
+
+// PrintGoogleMapsLink gibt den klickbaren URL-Link in der Konsole aus
+func GetGoogleMapsLink(latitude, longitude float64) string {
+	return fmt.Sprintf("https://www.google.com/maps?q=%f,%f", latitude, longitude)
+}
+
+func GetGoogleEarthLink(latitude, longitude float64) string {
+	return fmt.Sprintf("https://earth.google.com/web/search/%.8f,%.8f", latitude, longitude)
 }
