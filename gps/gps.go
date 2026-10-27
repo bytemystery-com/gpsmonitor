@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -15,8 +16,10 @@ import (
 // https://avionicsduino.com/wp-content/uploads/2023/04/NEO-M9N_Interface_description_UBX-19035940.pdf
 // https://www.ardusimple.com/nmea-protocol-and-message-description/
 
+// NEO-M9N
 const (
 	KNOT_IN_MSEC = (1852.0 / 3600.0)
+	KMH_IN_MSEC  = (1.0 / 3.6)
 )
 
 type Trace interface {
@@ -53,29 +56,53 @@ const (
 )
 
 type GGA struct {
-	TalkerId    string
-	Time        time.Time
-	Latitude    float64
-	Longitude   float64
-	Quality     Quality
-	NumSats     int
-	HDop        float32
-	Altitude    float32
-	AltSep      float32
-	DiffAge     float32
-	DiffStation int
+	TalkerId      string
+	Time          time.Time
+	Latitude      float64
+	Longitude     float64
+	Quality       Quality
+	NumSats       int
+	HDop          float32
+	Altitude      float32
+	AltSep        float32
+	DiffAge       float32
+	DiffStationId int
+}
+
+type SatDataDetail struct {
+	Id       int
+	Elev     int
+	Azimuth  int
+	Strength float32
+}
+
+type GSV struct {
+	TalkerId string
+	MsgTotal int
+	MsgNr    int
+	NumSat   int
+	Sats     []SatDataDetail
+	SignalId int
 }
 
 type RMC struct {
-	TalkerId  string
-	DateTime  time.Time
-	Latitude  float64
-	Longitude float64
-	Valid     bool
-	Speed     float32
-	Course    float32
-	MagVar    float32
-	Quality   Quality
+	TalkerId   string
+	DateTime   time.Time
+	Latitude   float64
+	Longitude  float64
+	Valid      bool
+	Speed      float32
+	CourseTrue float32
+	MagVar     float32
+	Quality    Quality
+}
+
+type VTG struct {
+	TalkerId   string
+	CourseTrue float32
+	CourseMag  float32
+	Speed      float32
+	Quality    Quality
 }
 
 type GLL struct {
@@ -102,16 +129,34 @@ type GSA struct {
 	SystemId      int
 }
 
+type MsgType int
+
+const (
+	MsgError MsgType = iota
+	MsgWarning
+	MsgNotice
+	MsgUser = 7
+)
+
+type TXT struct {
+	TalkerId string
+	MsgTotal int
+	MsgNr    int
+	MsgType  MsgType
+	Txt      string
+}
+
 func (g *GGA) Print() {
 	log.Printf("GGA")
-	log.Printf("  ID      : %s", g.TalkerId)
-	log.Printf("  Time    : %v", g.Time)
-	log.Printf("  Long    : %.5f", g.Longitude)
-	log.Printf("  Lat     : %.5f", g.Latitude)
-	log.Printf("  Alt     : %.2f", g.Altitude)
-	log.Printf("  Quality : %d", g.Quality)
-	log.Printf("  NumSats : %d", g.NumSats)
-	log.Printf("  HDop    : %.2f", g.HDop)
+	log.Printf("  ID            : %s", g.TalkerId)
+	log.Printf("  Time          : %v", g.Time)
+	log.Printf("  Long          : %.5f", g.Longitude)
+	log.Printf("  Lat           : %.5f", g.Latitude)
+	log.Printf("  Alt           : %.2f", g.Altitude)
+	log.Printf("  Quality       : %d", g.Quality)
+	log.Printf("  NumSats       : %d", g.NumSats)
+	log.Printf("  HDop          : %.2f", g.HDop)
+	log.Printf("  DiffStationId : %d", g.DiffStationId)
 }
 
 func (r *RMC) Print() {
@@ -122,7 +167,7 @@ func (r *RMC) Print() {
 	log.Printf("  Long        : %.5f", r.Longitude)
 	log.Printf("  Lat         : %.5f", r.Latitude)
 	log.Printf("  Speed       : %.3f", r.Speed)
-	log.Printf("  Course      : %.3f", r.Course)
+	log.Printf("  CourseTru   : %.3f", r.CourseTrue)
 	log.Printf("  Quality     : %d", r.Quality)
 	log.Printf("  MagVar      : %.3f", r.MagVar)
 }
@@ -135,6 +180,24 @@ func (l *GLL) Print() {
 	log.Printf("  Long        : %.5f", l.Longitude)
 	log.Printf("  Lat         : %.5f", l.Latitude)
 	log.Printf("  Quality     : %d", l.Quality)
+}
+
+func (v *VTG) Print() {
+	log.Printf("VTG")
+	log.Printf("  ID          : %s", v.TalkerId)
+	log.Printf("  CourseTru   : %.3f", v.CourseTrue)
+	log.Printf("  CourseMag   : %.3f", v.CourseTrue)
+	log.Printf("  Speed       : %.3f", v.Speed)
+	log.Printf("  Quality     : %d", v.Quality)
+}
+
+func (t *TXT) Print() {
+	log.Printf("TXT")
+	log.Printf("  ID          : %s", t.TalkerId)
+	log.Printf("  TotalMsgs   : %d", t.MsgTotal)
+	log.Printf("  MsgNr       : %d", t.MsgNr)
+	log.Printf("  Type        : %d", t.MsgType)
+	log.Printf("  Text        : %s", t.Txt)
 }
 
 func (g *GSA) Print() {
@@ -156,6 +219,22 @@ func (g *GSA) Print() {
 	log.Printf("  Satellites  : %s", s)
 }
 
+func (g *GSV) Print() {
+	log.Printf("GSV")
+	log.Printf("  ID          : %s", g.TalkerId)
+	log.Printf("  TotalMsgs   : %d", g.MsgTotal)
+	log.Printf("  MsgNr       : %d", g.MsgNr)
+	log.Printf("  NumSat      : %d", g.NumSat)
+	for _, item := range g.Sats {
+		log.Printf("    ID       : %d", item.Id)
+		log.Printf("    Elev     : %d", item.Elev)
+		log.Printf("    Azim     : %d", item.Azimuth)
+		log.Printf("    Strength : %.3f", item.Strength)
+	}
+
+	log.Printf("  SignalID    : %d", g.SignalId)
+}
+
 type Gps struct {
 	Messages []any
 	reader   io.Reader
@@ -171,6 +250,32 @@ func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
 	}, nil
 }
 
+func (gps *Gps) parseFloat32(s string) float32 {
+	f, err := strconv.ParseFloat(s, 64)
+	if err == nil {
+		return float32(f)
+	} else {
+		return float32(math.NaN())
+	}
+}
+
+func (gps *Gps) parseFloat64(s string) float64 {
+	f, err := strconv.ParseFloat(s, 64)
+	if err == nil {
+		return f
+	} else {
+		return math.NaN()
+	}
+}
+
+func (gps *Gps) parseInt(s string) int {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
 func (gps *Gps) SendNotify(val any) {
 	if gps.notify != nil {
 		select {
@@ -181,28 +286,34 @@ func (gps *Gps) SendNotify(val any) {
 	}
 }
 
-func (gps *Gps) parseLatitude(s string) (float64, error) {
+func (gps *Gps) parseLatitude(s string) float64 {
+	if len(s) < 3 {
+		return math.NaN()
+	}
 	dd, err := strconv.Atoi(s[:2])
 	if err != nil {
-		return 0, err
+		return math.NaN()
 	}
 	mm, err := strconv.ParseFloat(s[2:], 64)
 	if err != nil {
-		return 0, err
+		return math.NaN()
 	}
-	return float64(dd) + mm/60.0, nil
+	return float64(dd) + mm/60.0
 }
 
-func (gps *Gps) parseLongitude(s string) (float64, error) {
+func (gps *Gps) parseLongitude(s string) float64 {
+	if len(s) < 4 {
+		return math.NaN()
+	}
 	dd, err := strconv.Atoi(s[:3])
 	if err != nil {
-		return 0, err
+		return math.NaN()
 	}
 	mm, err := strconv.ParseFloat(s[3:], 64)
 	if err != nil {
-		return 0, err
+		return math.NaN()
 	}
-	return float64(dd) + mm/60.0, nil
+	return float64(dd) + mm/60.0
 }
 
 func (gps *Gps) verifyNmeaChecksum(s string) ([]string, error) {
@@ -238,74 +349,59 @@ func (gps *Gps) parseGGA(sArray []string) (*GGA, error) {
 	if l != 15 {
 		return nil, fmt.Errorf("unexpected number of fields")
 	}
+
 	g := GGA{
 		TalkerId: sArray[0][1:3],
 	}
+
 	t, err := time.Parse("150405.00", sArray[1])
 	if err == nil {
 		g.Time = t
 	}
-	f, err := gps.parseLatitude(sArray[2])
-	if err == nil {
-		g.Latitude = f
-		if sArray[3] == "S" {
-			g.Latitude = -g.Latitude
-		}
+
+	g.Latitude = gps.parseLatitude(sArray[2])
+	if sArray[3] == "S" {
+		g.Latitude = -g.Latitude
 	}
-	f, err = gps.parseLongitude(sArray[4])
-	if err == nil {
-		g.Longitude = f
-		if sArray[5] == "W" {
-			g.Longitude = -g.Longitude
-		}
+
+	g.Longitude = gps.parseLongitude(sArray[4])
+	if sArray[5] == "W" {
+		g.Longitude = -g.Longitude
 	}
-	q, err := strconv.Atoi(sArray[6])
-	if err == nil {
-		g.Quality = Quality(q)
-	}
-	q, err = strconv.Atoi(sArray[7])
-	if err == nil {
-		g.NumSats = q
-	}
-	v, err := strconv.ParseFloat(sArray[8], 64)
-	if err == nil {
-		g.HDop = float32(v)
-	}
-	v, err = strconv.ParseFloat(sArray[9], 64)
-	if err == nil {
-		g.Altitude = float32(v)
-	}
-	v, err = strconv.ParseFloat(sArray[11], 64)
-	if err == nil {
-		g.AltSep = float32(v)
-	}
-	v, err = strconv.ParseFloat(sArray[13], 64)
-	if err == nil {
-		g.DiffAge = float32(v)
-	}
-	q, err = strconv.Atoi(sArray[14])
-	if err == nil {
-		g.DiffStation = q
-	}
+
+	g.Quality = Quality(gps.parseInt(sArray[6]))
+
+	g.NumSats = gps.parseInt(sArray[7])
+
+	g.HDop = gps.parseFloat32(sArray[8])
+
+	g.Altitude = gps.parseFloat32(sArray[9])
+
+	g.AltSep = gps.parseFloat32(sArray[11])
+
+	g.DiffAge = gps.parseFloat32(sArray[13])
+
+	g.DiffStationId = gps.parseInt(sArray[14])
+
 	return &g, nil
 }
 
-func (gps *Gps) getQualityFromLetter(s string) (Quality, error) {
+func (gps *Gps) getQualityFromLetter(s string) Quality {
 	switch s {
 	case "A":
-		return NormalFix, nil
+		return NormalFix
 	case "N":
-		return NotFix, nil
+		return NotFix
 	case "E":
-		return Estimated, nil
+		return Estimated
 	case "D":
-		return DiffFix, nil
+		return DiffFix
 	case "F":
-		return RTKFloat, nil
+		return RTKFloat
 	case "R":
-		return RTKFix, nil
+		return RTKFix
 	}
-	return 0, fmt.Errorf("invalid charakter %s for quality", s)
+	return -1
 }
 
 func (gps *Gps) parseRMC(sArray []string) (*RMC, error) {
@@ -313,54 +409,46 @@ func (gps *Gps) parseRMC(sArray []string) (*RMC, error) {
 	if l != 14 {
 		return nil, fmt.Errorf("unexpected number of fields")
 	}
+
 	r := RMC{
 		TalkerId: sArray[0][1:3],
 	}
+
 	t, err := time.Parse("150405.00", sArray[1])
 	if err == nil {
 		r.DateTime = t
 	}
+
 	if sArray[2] == "A" {
 		r.Valid = true
 	}
-	f, err := gps.parseLatitude(sArray[3])
-	if err == nil {
-		r.Latitude = f
-		if sArray[4] == "S" {
-			r.Latitude = -r.Latitude
-		}
+
+	r.Latitude = gps.parseLatitude(sArray[3])
+	if sArray[4] == "S" {
+		r.Latitude = -r.Latitude
 	}
-	f, err = gps.parseLongitude(sArray[5])
-	if err == nil {
-		r.Longitude = f
-		if sArray[6] == "W" {
-			r.Longitude = -r.Longitude
-		}
+
+	r.Longitude = gps.parseLongitude(sArray[5])
+	if sArray[6] == "W" {
+		r.Longitude = -r.Longitude
 	}
-	f, err = strconv.ParseFloat(sArray[7], 64)
-	if err == nil {
-		r.Speed = float32(f * KNOT_IN_MSEC)
-	}
-	f, err = strconv.ParseFloat(sArray[8], 64)
-	if err == nil {
-		r.Course = float32(f)
-	}
+
+	r.Speed = gps.parseFloat32(sArray[7]) * KNOT_IN_MSEC
+
+	r.CourseTrue = gps.parseFloat32(sArray[8])
+
 	d, err := time.Parse("020106", sArray[9])
 	if err == nil {
 		r.DateTime = time.Date(
 			d.Year(), d.Month(), d.Day(), r.DateTime.Hour(), r.DateTime.Minute(), r.DateTime.Second(), r.DateTime.Nanosecond(), time.UTC)
 	}
-	f, err = strconv.ParseFloat(sArray[10], 64)
-	if err == nil {
-		r.MagVar = float32(f)
-		if sArray[11] == "W" {
-			r.MagVar = -r.MagVar
-		}
+	r.MagVar = gps.parseFloat32(sArray[10])
+	if sArray[11] == "W" {
+		r.MagVar = -r.MagVar
 	}
-	q, err := gps.getQualityFromLetter(sArray[12])
-	if err == nil {
-		r.Quality = q
-	}
+
+	r.Quality = gps.getQualityFromLetter(sArray[12])
+
 	return &r, nil
 }
 
@@ -372,19 +460,15 @@ func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 	g := GLL{
 		TalkerId: sArray[0][1:3],
 	}
-	lo, err := gps.parseLatitude(sArray[1])
-	if err == nil {
-		g.Latitude = lo
-		if sArray[2] == "S" {
-			g.Latitude = -g.Latitude
-		}
+
+	g.Latitude = gps.parseLatitude(sArray[1])
+	if sArray[2] == "S" {
+		g.Latitude = -g.Latitude
 	}
-	la, err := gps.parseLongitude(sArray[3])
-	if err == nil {
-		g.Longitude = la
-		if sArray[4] == "W" {
-			g.Longitude = -g.Longitude
-		}
+
+	g.Longitude = gps.parseLongitude(sArray[3])
+	if sArray[4] == "W" {
+		g.Longitude = -g.Longitude
 	}
 
 	t, err := time.Parse("150405.00", sArray[5])
@@ -396,10 +480,7 @@ func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 		g.Valid = true
 	}
 
-	q, err := gps.getQualityFromLetter(sArray[12])
-	if err == nil {
-		g.Quality = q
-	}
+	g.Quality = gps.getQualityFromLetter(sArray[12])
 
 	return &g, nil
 }
@@ -418,38 +499,98 @@ func (gps *Gps) parseGSA(sArray []string) (*GSA, error) {
 		g.OperatingMode = Automatically
 	}
 
-	n, err := strconv.Atoi(sArray[2])
-	if err == nil {
-		g.NavMode = NavMode(n)
-	}
+	g.NavMode = NavMode(gps.parseInt(sArray[2]))
+
 	for i := range 12 {
 		if sArray[3+i] != "" {
-			n, err = strconv.Atoi(sArray[3+i])
+			n, err := strconv.Atoi(sArray[3+i])
 			if err == nil {
 				g.SatDatas = append(g.SatDatas, SatData{Number: n})
 			}
 		}
 	}
-	f, err := strconv.ParseFloat(sArray[15], 64)
-	if err == nil {
-		g.Pdop = float32(f)
-	}
+	g.Pdop = gps.parseFloat32(sArray[15])
 
-	f, err = strconv.ParseFloat(sArray[16], 64)
-	if err == nil {
-		g.Hdop = float32(f)
-	}
+	g.Hdop = gps.parseFloat32(sArray[16])
 
-	f, err = strconv.ParseFloat(sArray[17], 64)
-	if err == nil {
-		g.Vdop = float32(f)
-	}
-	n, err = strconv.Atoi(sArray[18])
-	if err == nil {
-		g.SystemId = n
-	}
+	g.Vdop = gps.parseFloat32(sArray[17])
+
+	g.SystemId = gps.parseInt(sArray[18])
 
 	return &g, nil
+}
+
+func (gps *Gps) parseVTG(sArray []string) (*VTG, error) {
+	l := len(sArray)
+	if l != 10 {
+		return nil, fmt.Errorf("unexpected number of fields")
+	}
+	v := VTG{
+		TalkerId: sArray[0][1:3],
+	}
+
+	v.CourseTrue = gps.parseFloat32(sArray[1])
+
+	v.CourseMag = gps.parseFloat32(sArray[3])
+
+	v.Speed = gps.parseFloat32(sArray[5]) * KNOT_IN_MSEC
+
+	v.Speed = gps.parseFloat32(sArray[7]) * KMH_IN_MSEC
+
+	v.Quality = gps.getQualityFromLetter(sArray[9])
+
+	return &v, nil
+}
+
+func (gps *Gps) parseGSV(sArray []string) (*GSV, error) {
+	l := len(sArray)
+	if l < 5 {
+		return nil, fmt.Errorf("unexpected number of fields")
+	}
+	g := GSV{
+		TalkerId: sArray[0][1:3],
+		Sats:     make([]SatDataDetail, 0, 4),
+	}
+
+	g.MsgTotal = gps.parseInt(sArray[1])
+
+	g.MsgNr = gps.parseInt(sArray[2])
+
+	g.NumSat = gps.parseInt(sArray[3])
+
+	n := (l - 5) / 4
+	for i := range n {
+		d := SatDataDetail{
+			Id:       gps.parseInt(sArray[4+i*4]),
+			Elev:     gps.parseInt(sArray[5+i*4]),
+			Azimuth:  gps.parseInt(sArray[6+i*4]),
+			Strength: gps.parseFloat32(sArray[7+i*4]),
+		}
+		g.Sats = append(g.Sats, d)
+	}
+	g.SignalId = gps.parseInt(sArray[4+n*4])
+
+	return &g, nil
+}
+
+func (gps *Gps) parseTXT(sArray []string) (*TXT, error) {
+	l := len(sArray)
+	if l != 5 {
+		return nil, fmt.Errorf("unexpected number of fields")
+	}
+	t := TXT{
+		TalkerId: sArray[0][1:3],
+	}
+
+	t.MsgTotal = gps.parseInt(sArray[1])
+
+	t.MsgNr = gps.parseInt(sArray[2])
+
+	t.MsgType = MsgType(gps.parseInt(sArray[3]))
+
+	t.Txt = sArray[4]
+
+	return &t, nil
 }
 
 func (gps *Gps) parseNmea(line string) {
@@ -488,8 +629,29 @@ func (gps *Gps) parseNmea(line string) {
 			gps.SendNotify(gsa)
 		}
 
+	case "VTG":
+		vtg, err := gps.parseVTG(sArray)
+		if err == nil {
+			gps.Messages = append(gps.Messages, vtg)
+			gps.SendNotify(vtg)
+		}
+
+	case "GSV":
+		gsv, err := gps.parseGSV(sArray)
+		if err == nil {
+			gps.Messages = append(gps.Messages, gsv)
+			gps.SendNotify(gsv)
+		}
+
+	case "TXT":
+		txt, err := gps.parseTXT(sArray)
+		if err == nil {
+			gps.Messages = append(gps.Messages, txt)
+			gps.SendNotify(txt)
+		}
+
 	default:
-		//	log.Printf("Unknownn token: %s", sArray[0])
+		log.Printf("Unknownn token: %s", sArray[0])
 	}
 }
 

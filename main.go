@@ -39,13 +39,21 @@ func main() {
 	for val := range notify {
 		// fmt.Printf("Received: %T\n", val)
 		switch data := val.(type) {
-		case *gps.GGA:
-			data.Print()
-		case *gps.RMC:
-			data.Print()
-		case *gps.GLL:
-			data.Print()
-		case *gps.GSA:
+		/*
+			case *gps.GGA:
+				data.Print()
+			case *gps.RMC:
+				data.Print()
+			case *gps.GLL:
+				data.Print()
+			case *gps.GSA:
+				data.Print()
+			case *gps.VTG:
+				data.Print()
+			case *gps.GSV:
+				data.Print()
+		*/
+		case *gps.TXT:
 			data.Print()
 		}
 	}
