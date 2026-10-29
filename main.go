@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"time"
 
 	"sertest/gps"
 
@@ -34,27 +35,38 @@ func main() {
 		port.Close()
 		return
 	}
-	notify := make(chan any, 20)
-	go g.Sart(notify)
-	for val := range notify {
-		// fmt.Printf("Received: %T\n", val)
-		switch data := val.(type) {
-		case *gps.GGA:
-			data.Print()
-		case *gps.RMC:
-			data.Print()
-		case *gps.GLL:
-			data.Print()
-		case *gps.GSA:
-			data.Print()
-		case *gps.VTG:
-			data.Print()
-		case *gps.GSV:
-			data.Print()
-		case *gps.TXT:
-			data.Print()
-		case *gps.GST:
-			data.Print()
+	go g.Start(nil)
+	for {
+		time.Sleep(200 * time.Millisecond)
+		g.GpsSumData.Print()
+		sats := g.GetSattelites()
+		for _, item := range sats {
+			item.Print()
 		}
 	}
+	/*
+		notify := make(chan any, 20)
+		go g.Sart(notify)
+		for val := range notify {
+			// fmt.Printf("Received: %T\n", val)
+			switch data := val.(type) {
+			case *gps.GGA:
+				data.Print()
+			case *gps.RMC:
+				data.Print()
+			case *gps.GLL:
+				data.Print()
+			case *gps.GSA:
+				data.Print()
+			case *gps.VTG:
+				data.Print()
+			case *gps.GSV:
+				data.Print()
+			case *gps.TXT:
+				data.Print()
+			case *gps.GST:
+				data.Print()
+			}
+		}
+	*/
 }

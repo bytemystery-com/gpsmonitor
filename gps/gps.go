@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"math"
 	"strconv"
 	"strings"
@@ -42,6 +43,31 @@ const (
 	Simul
 )
 
+func (q Quality) String() string {
+	switch q {
+	case NotFix:
+		return "NotFix"
+	case NormalFix:
+		return "NormalFix"
+	case DiffFix:
+		return "DiffFix"
+	case PPSFix:
+		return "PPSFix"
+	case RTKFix:
+		return "RTKFix"
+	case RTKFloat:
+		return "RTKFloat"
+	case Estimated:
+		return "Estimated"
+	case Manual:
+		return "Manual"
+	case Simul:
+		return "Simul"
+	default:
+		return "???"
+	}
+}
+
 type OpMode int
 
 const (
@@ -56,6 +82,19 @@ const (
 	Nav2D
 	Nav3D
 )
+
+func (n NavMode) String() string {
+	switch n {
+	case NavNoFix:
+		return "NoFix"
+	case Nav2D:
+		return "Nav2D"
+	case Nav3D:
+		return "Nav3D"
+	default:
+		return "???"
+	}
+}
 
 type GGA struct {
 	TalkerId      string
@@ -85,6 +124,49 @@ type GSV struct {
 	NumSat   int
 	Sats     []SatDataDetail
 	SignalId int
+}
+
+func getGpsNetworkFromSatId(id int) GPSNetwork {
+	if id >= 1 && id <= 32 {
+		return NetworkGPS
+	}
+	if id >= 65 && id <= 96 {
+		return NetworkGLONASS
+	}
+	if (id >= 1 && id <= 36) || (id >= 301 && id <= 336) {
+		return NetworkGalileo
+	}
+	if (id >= 1 && id <= 37) || (id >= 401 && id <= 437) {
+		return NetworkBeiDou
+	}
+	if (id >= 33 && id <= 64) || (id >= 152 && id <= 158) {
+		return NetworkSBAS
+	}
+	if id >= 173 && id <= 182 {
+		return NetworkIMES
+	}
+	if id >= 193 && id <= 202 {
+		return NetworkQZSS
+	}
+	return NetworkUnknown
+}
+
+// Seite 17 der Interface spec
+func (gsv *GSV) getNetwork(sat *SatDataDetail) GPSNetwork {
+	switch gsv.TalkerId {
+	case "GP":
+		return NetworkGPS
+	case "GL":
+		return NetworkGLONASS
+	case "GB":
+		return NetworkBeiDou
+	case "GA":
+		return NetworkGalileo
+	case "GQ":
+		return NetworkQZSS
+	default: // GN and unknown - try to identify by satID
+		return getGpsNetworkFromSatId(sat.Id)
+	}
 }
 
 type RMC struct {
@@ -117,7 +199,7 @@ type GLL struct {
 }
 
 type SatData struct {
-	Number int
+	Id int
 }
 
 type GSA struct {
@@ -129,6 +211,39 @@ type GSA struct {
 	Vdop          float32
 	Hdop          float32
 	SystemId      int
+}
+
+func (gsa *GSA) getNetwork(sat *SatData) GPSNetwork {
+	switch gsa.TalkerId {
+	case "GP":
+		return NetworkGPS
+	case "GL":
+		return NetworkGLONASS
+	case "GB":
+		return NetworkBeiDou
+	case "GA":
+		return NetworkGalileo
+	case "GQ":
+		return NetworkQZSS
+	default: // GN and unknown - try to identify by systemId
+		switch gsa.SystemId {
+		case 1:
+			if (sat.Id >= 33 && sat.Id <= 64) || (sat.Id >= 152 && sat.Id <= 158) {
+				return NetworkSBAS
+			}
+			return NetworkGPS
+		case 2:
+			return NetworkGLONASS
+		case 3:
+			return NetworkGalileo
+		case 4:
+			return NetworkBeiDou
+		case 5:
+			return NetworkQZSS
+		default:
+			return getGpsNetworkFromSatId(sat.Id)
+		}
+	}
 }
 
 type MsgType int
@@ -222,7 +337,7 @@ func (g *GSA) Print() {
 		if s != "" {
 			s += ", "
 		}
-		s += strconv.Itoa(item.Number)
+		s += strconv.Itoa(item.Id)
 	}
 	log.Printf("GSA")
 	log.Printf("  ID          : %s", g.TalkerId)
@@ -273,19 +388,57 @@ const (
 	NetworkGalileo
 	NetworkBeiDou
 	NetworkQZSS
+	NetworkSBAS
+	NetworkIMES
 )
 
-type SatKey struct {
-	Network GPSNetwork
-	Id      int
+func (n GPSNetwork) String() string {
+	switch n {
+	case NetworkUnknown:
+		return "Unknown"
+	case NetworkGPS:
+		return "GPS"
+	case NetworkGLONASS:
+		return "GLONASS"
+	case NetworkGalileo:
+		return "Galileo"
+	case NetworkBeiDou:
+		return "BeiDou"
+	case NetworkQZSS:
+		return "QZSS"
+	case NetworkSBAS:
+		return "SBAS"
+	case NetworkIMES:
+		return "IMES"
+	default:
+		return "???"
+	}
+}
+
+type satKey struct {
+	network GPSNetwork
+	id      int
 }
 
 type SatInfo struct {
-	Network GPSNetwork
-	SatDataDetail
-	SignalID   int
-	Used       bool
-	LastUpdate time.Time
+	Network        GPSNetwork
+	Id             int
+	Elev           int
+	Azimuth        int
+	Strength       map[int]float32 // SignalID as Key
+	Used           bool
+	LastUpdate     time.Time
+	LastUsedUpdate time.Time
+}
+
+func (s *SatInfo) Print() {
+	log.Printf("Sat:")
+	log.Printf("  Id        : %d", s.Id)
+	log.Printf("  Network   : %s", s.Network.String())
+	log.Printf("  Elevation : %d", s.Elev)
+	log.Printf("  Azimuth   : %d", s.Azimuth)
+	log.Printf("  Used      : %v", s.Used)
+	log.Printf("  Strength  : %v", s.Strength)
 }
 
 type GpsData struct {
@@ -303,8 +456,49 @@ type GpsData struct {
 	VDop          atomic.Uint32 // float32
 	PDop          atomic.Uint32 // float32
 	AltSep        atomic.Uint32 // float32 // Unterschied von Meereshöe zu Ellipsoid
+	Rms           atomic.Uint32 // float32 // Rms von Satelitten
+	StdMajor      atomic.Uint32 // float32 // Fehlerellipse - grosse Achse
+	StdMinor      atomic.Uint32 // float32 // Fehlerellipse - kleine Achse
+	Orientation   atomic.Uint32 // float32 // Fehlerellipse - Orientierung
+	StdLatitude   atomic.Uint32 // float32
+	StdLongitude  atomic.Uint32 // float32
+	StdAltitude   atomic.Uint32 // float32
 	DiffAge       atomic.Uint32 // float32 // Alter der Korrekturdaten
 	DiffStationId atomic.Uint32 // int
+	Messages      atomic.Value  // []string
+}
+
+func (gps *GpsData) Print() {
+	log.Printf("GPSDATA:")
+	t, _ := gps.Time.Load().(time.Time)
+	log.Printf("  DateTime      : %v", t)
+	log.Printf("  Latitude      : %.7f °", math.Float64frombits(gps.Latitude.Load()))
+	log.Printf("  Longitude     : %.7f °", math.Float64frombits(gps.Longitude.Load()))
+	log.Printf("  Altitude      : %.1f m", math.Float32frombits(gps.Altitude.Load()))
+	log.Printf("  Speed         : %.1f m/s", math.Float32frombits(gps.Speed.Load()))
+	log.Printf("  CourseTrue    : %.2f °", math.Float32frombits(gps.CourseTrue.Load()))
+	log.Printf("  MagVar        : %.2f °", math.Float32frombits(gps.MagVar.Load()))
+	log.Printf("  Quality       : %s", Quality(gps.Quality.Load()).String())
+	log.Printf("  NavMode       : %s", NavMode(gps.NavMode.Load()).String())
+	log.Printf("  NumSats       : %d", gps.NumSats.Load())
+	log.Printf("  HDop          : %.1f", math.Float32frombits(gps.HDop.Load()))
+	log.Printf("  VDop          : %.1f", math.Float32frombits(gps.VDop.Load()))
+	log.Printf("  PDop          : %.1f", math.Float32frombits(gps.PDop.Load()))
+	log.Printf("  AltSep        : %.1f m", math.Float32frombits(gps.AltSep.Load()))
+	log.Printf("  Rms           : %.1f m", math.Float32frombits(gps.Rms.Load()))
+	log.Printf("  StdMajor      : %.1f m", math.Float32frombits(gps.StdMajor.Load()))
+	log.Printf("  StdMinor      : %.1f m", math.Float32frombits(gps.StdMinor.Load()))
+	log.Printf("  Orientation   : %.1f °", math.Float32frombits(gps.Orientation.Load()))
+	log.Printf("  StdLatitude   : %.1f m", math.Float32frombits(gps.StdLatitude.Load()))
+	log.Printf("  StdLongitude  : %.1f m", math.Float32frombits(gps.StdLongitude.Load()))
+	log.Printf("  StdAltitude   : %.1f m", math.Float32frombits(gps.StdAltitude.Load()))
+	log.Printf("  DiffAge       : %.1f s", math.Float32frombits(gps.DiffAge.Load()))
+	log.Printf("  DiffStationId : %d", gps.DiffStationId.Load())
+	log.Printf("  Messages:")
+	m, _ := gps.Messages.Load().([]string)
+	for _, item := range m {
+		log.Printf("    - %s", item)
+	}
 }
 
 type Gps struct {
@@ -313,10 +507,10 @@ type Gps struct {
 	writer   io.Writer
 	notify   chan<- any
 
-	satInfos map[SatKey]SatInfo
-	InfoLock sync.RWMutex
+	satMap      map[satKey]SatInfo
+	satInfoLock sync.RWMutex
 
-	GpsData GpsData
+	GpsSumData GpsData
 }
 
 func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
@@ -324,7 +518,7 @@ func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
 		Messages: make([]any, 0, 100),
 		reader:   reader,
 		writer:   writer,
-		satInfos: make(map[SatKey]SatInfo, 20),
+		satMap:   make(map[satKey]SatInfo, 20),
 	}, nil
 }
 
@@ -334,15 +528,6 @@ func (gps *Gps) parseFloat32(s string) float32 {
 		return float32(f)
 	} else {
 		return float32(math.NaN())
-	}
-}
-
-func (gps *Gps) parseFloat64(s string) float64 {
-	f, err := strconv.ParseFloat(s, 64)
-	if err == nil {
-		return f
-	} else {
-		return math.NaN()
 	}
 }
 
@@ -460,6 +645,41 @@ func (gps *Gps) LoadTimeFromAtomic(a *atomic.Value) time.Time {
 		}
 	}
 	return td
+}
+
+func (gps *Gps) UpdateTimeInAtomic(t time.Time, a *atomic.Value) {
+	told := gps.LoadTimeFromAtomic(a)
+	t = time.Date(told.Year(), told.Month(), told.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
+	gps.StoreTimeInAtomic(t, a)
+}
+
+func (gps *Gps) LoadStringSliceFromAtomic(a *atomic.Value) []string {
+	var s []string
+	v := a.Load()
+	if v != nil {
+		t, ok := v.([]string)
+		if ok {
+			s = t
+		}
+	}
+	return s
+}
+
+func (gps *Gps) AddStringToSliceInAtomic(msg string, maxNum int, a *atomic.Value) {
+	if msg != "" {
+		sl := gps.LoadStringSliceFromAtomic(a)
+		l := min(maxNum, len(sl)+1)
+		nsl := make([]string, l)
+		if len(sl) > 0 {
+			if len(sl) >= maxNum {
+				copy(nsl, sl[1:])
+			} else {
+				copy(nsl, sl)
+			}
+		}
+		nsl[len(nsl)-1] = msg
+		a.Store(nsl)
+	}
 }
 
 func (gps *Gps) parseGGA(sArray []string) (*GGA, error) {
@@ -623,7 +843,7 @@ func (gps *Gps) parseGSA(sArray []string) (*GSA, error) {
 		if sArray[3+i] != "" {
 			n, err := strconv.Atoi(sArray[3+i])
 			if err == nil {
-				g.SatDatas = append(g.SatDatas, SatData{Number: n})
+				g.SatDatas = append(g.SatDatas, SatData{Id: n})
 			}
 		}
 	}
@@ -763,18 +983,17 @@ func (gps *Gps) parseNmea(line string) {
 		gga, err := gps.parseGGA(sArray)
 		if err == nil {
 			gps.appendMessage(gga)
-			t := gps.LoadTimeFromAtomic(&gps.GpsData.Time)
-			t = time.Date(t.Year(), t.Month(), t.Day(), gga.Time.Hour(), gga.Time.Minute(), gga.Time.Second(), gga.Time.Nanosecond(), time.UTC)
-			gps.StoreTimeInAtomic(t, &gps.GpsData.Time)
-			gps.StoreFloat64InAtomic(gga.Latitude, &gps.GpsData.Latitude)
-			gps.StoreFloat64InAtomic(gga.Longitude, &gps.GpsData.Longitude)
-			gps.StoreIntInAtomic(int(gga.Quality), &gps.GpsData.Quality)
-			gps.StoreIntInAtomic(gga.NumSats, &gps.GpsData.NumSats)
-			gps.StoreFloat32InAtomic(gga.HDop, &gps.GpsData.HDop)
-			gps.StoreFloat32InAtomic(gga.Altitude, &gps.GpsData.Altitude)
-			gps.StoreFloat32InAtomic(gga.AltSep, &gps.GpsData.AltSep)
-			gps.StoreFloat32InAtomic(gga.DiffAge, &gps.GpsData.DiffAge)
-			gps.StoreIntInAtomic(gga.DiffStationId, &gps.GpsData.DiffStationId)
+
+			gps.UpdateTimeInAtomic(gga.Time, &gps.GpsSumData.Time)
+			gps.StoreFloat64InAtomic(gga.Latitude, &gps.GpsSumData.Latitude)
+			gps.StoreFloat64InAtomic(gga.Longitude, &gps.GpsSumData.Longitude)
+			gps.StoreIntInAtomic(int(gga.Quality), &gps.GpsSumData.Quality)
+			gps.StoreIntInAtomic(gga.NumSats, &gps.GpsSumData.NumSats)
+			gps.StoreFloat32InAtomic(gga.HDop, &gps.GpsSumData.HDop)
+			gps.StoreFloat32InAtomic(gga.Altitude, &gps.GpsSumData.Altitude)
+			gps.StoreFloat32InAtomic(gga.AltSep, &gps.GpsSumData.AltSep)
+			gps.StoreFloat32InAtomic(gga.DiffAge, &gps.GpsSumData.DiffAge)
+			gps.StoreIntInAtomic(gga.DiffStationId, &gps.GpsSumData.DiffStationId)
 
 			gps.SendNotify(gga)
 		}
@@ -783,6 +1002,17 @@ func (gps *Gps) parseNmea(line string) {
 		rmc, err := gps.parseRMC(sArray)
 		if err == nil {
 			gps.appendMessage(rmc)
+
+			if rmc.Valid {
+				gps.StoreTimeInAtomic(rmc.DateTime, &gps.GpsSumData.Time)
+			}
+			gps.StoreFloat64InAtomic(rmc.Latitude, &gps.GpsSumData.Latitude)
+			gps.StoreFloat64InAtomic(rmc.Longitude, &gps.GpsSumData.Longitude)
+			gps.StoreFloat32InAtomic(rmc.Speed, &gps.GpsSumData.Speed)
+			gps.StoreFloat32InAtomic(rmc.CourseTrue, &gps.GpsSumData.CourseTrue)
+			gps.StoreFloat32InAtomic(rmc.MagVar, &gps.GpsSumData.MagVar)
+			gps.StoreIntInAtomic(int(rmc.Quality), &gps.GpsSumData.Quality)
+
 			gps.SendNotify(rmc)
 		}
 
@@ -790,6 +1020,14 @@ func (gps *Gps) parseNmea(line string) {
 		gll, err := gps.parseGLL(sArray)
 		if err == nil {
 			gps.appendMessage(gll)
+
+			if gll.Valid {
+				gps.UpdateTimeInAtomic(gll.Time, &gps.GpsSumData.Time)
+				gps.StoreFloat64InAtomic(gll.Latitude, &gps.GpsSumData.Latitude)
+				gps.StoreFloat64InAtomic(gll.Longitude, &gps.GpsSumData.Longitude)
+				gps.StoreIntInAtomic(int(gll.Quality), &gps.GpsSumData.Quality)
+			}
+
 			gps.SendNotify(gll)
 		}
 
@@ -797,6 +1035,37 @@ func (gps *Gps) parseNmea(line string) {
 		gsa, err := gps.parseGSA(sArray)
 		if err == nil {
 			gps.appendMessage(gsa)
+
+			gps.StoreIntInAtomic(int(gsa.NavMode), &gps.GpsSumData.NavMode)
+			gps.StoreFloat32InAtomic(gsa.Pdop, &gps.GpsSumData.PDop)
+			gps.StoreFloat32InAtomic(gsa.Vdop, &gps.GpsSumData.VDop)
+			gps.StoreFloat32InAtomic(gsa.Hdop, &gps.GpsSumData.HDop)
+
+			gps.satInfoLock.Lock()
+			for _, item := range gsa.SatDatas {
+				key := satKey{
+					id:      item.Id,
+					network: gsa.getNetwork(&item),
+				}
+				info, ok := gps.satMap[key]
+				if !ok {
+					info = SatInfo{
+						Id:       item.Id,
+						Network:  key.network,
+						Strength: make(map[int]float32, 5),
+						Azimuth:  -1,
+						Elev:     -1,
+					}
+				}
+				info.Used = true
+				now := time.Now()
+				info.LastUsedUpdate = now
+				info.LastUpdate = now
+
+				gps.satMap[key] = info
+			}
+			gps.satInfoLock.Unlock()
+
 			gps.SendNotify(gsa)
 		}
 
@@ -804,6 +1073,11 @@ func (gps *Gps) parseNmea(line string) {
 		vtg, err := gps.parseVTG(sArray)
 		if err == nil {
 			gps.appendMessage(vtg)
+
+			gps.StoreFloat32InAtomic(vtg.CourseTrue, &gps.GpsSumData.CourseTrue)
+			gps.StoreFloat32InAtomic(vtg.Speed, &gps.GpsSumData.Speed)
+			gps.StoreIntInAtomic(int(vtg.Quality), &gps.GpsSumData.Quality)
+
 			gps.SendNotify(vtg)
 		}
 
@@ -811,6 +1085,27 @@ func (gps *Gps) parseNmea(line string) {
 		gsv, err := gps.parseGSV(sArray)
 		if err == nil {
 			gps.appendMessage(gsv)
+			gps.satInfoLock.Lock()
+			for _, item := range gsv.Sats {
+				key := satKey{
+					id:      item.Id,
+					network: gsv.getNetwork(&item),
+				}
+				info, ok := gps.satMap[key]
+				if !ok {
+					info = SatInfo{
+						Id:       item.Id,
+						Network:  key.network,
+						Strength: make(map[int]float32, 5),
+					}
+				}
+				info.Strength[gsv.SignalId] = item.Strength
+				info.Elev = item.Elev
+				info.Azimuth = item.Azimuth
+				info.LastUpdate = time.Now()
+				gps.satMap[key] = info
+			}
+			gps.satInfoLock.Unlock()
 			gps.SendNotify(gsv)
 		}
 
@@ -818,6 +1113,7 @@ func (gps *Gps) parseNmea(line string) {
 		txt, err := gps.parseTXT(sArray)
 		if err == nil {
 			gps.appendMessage(txt)
+			gps.AddStringToSliceInAtomic(txt.Txt, 20, &gps.GpsSumData.Messages)
 			gps.SendNotify(txt)
 		}
 
@@ -825,6 +1121,16 @@ func (gps *Gps) parseNmea(line string) {
 		gst, err := gps.parseGST(sArray)
 		if err == nil {
 			gps.appendMessage(gst)
+
+			gps.UpdateTimeInAtomic(gst.Time, &gps.GpsSumData.Time)
+			gps.StoreFloat32InAtomic(gst.Rms, &gps.GpsSumData.Rms)
+			gps.StoreFloat32InAtomic(gst.StdMajor, &gps.GpsSumData.StdMajor)
+			gps.StoreFloat32InAtomic(gst.StdMinor, &gps.GpsSumData.StdMinor)
+			gps.StoreFloat32InAtomic(gst.Orientation, &gps.GpsSumData.Orientation)
+			gps.StoreFloat32InAtomic(gst.StdLatitude, &gps.GpsSumData.StdLatitude)
+			gps.StoreFloat32InAtomic(gst.StdLongitude, &gps.GpsSumData.StdLongitude)
+			gps.StoreFloat32InAtomic(gst.StdAltitude, &gps.GpsSumData.StdAltitude)
+
 			gps.SendNotify(gst)
 		}
 
@@ -875,14 +1181,34 @@ func (gps *Gps) SendUBXConfig(layer byte, key uint32, value byte) error {
 	return err
 }
 
-func (gps *Gps) Sart(notify chan<- any) {
+func (gps *Gps) doSatMapCleanup() {
+	for {
+		time.Sleep(5 * time.Second)
+		gps.satInfoLock.Lock()
+		now := time.Now()
+		for key, item := range gps.satMap {
+			if now.Sub(item.LastUpdate) > 150*time.Second {
+				delete(gps.satMap, key)
+			} else if item.Used && now.Sub(item.LastUsedUpdate) > 5*time.Second {
+				item.Used = false
+				gps.satMap[key] = item
+			}
+		}
+		gps.satInfoLock.Unlock()
+	}
+}
+
+func (gps *Gps) Start(notify chan<- any) {
 	gps.notify = notify
 	reader := bufio.NewReader(gps.reader)
 	gps.SendUBXConfig(0x01, 0x20930001, 41) // NMEA 4.11
+	gps.SendUBXConfig(0x01, 0x20930007, 1)  // Extended einschalten
 	gps.SendUBXConfig(0x01, 0x209100d4, 1)  // GST einschalten
 	gps.SendUBXConfig(0x01, 0x20910087, 1)  // TXT einschalten
 	// gps.SendUBXConfig(0x01, 0x209100b2, 1)  // GNS einschalten ???
 	gps.SendUBXConfig(0x01, 0x209100b7, 1) // VTG einschalten
+
+	go gps.doSatMapCleanup()
 
 	for {
 		b, err := reader.ReadByte()
@@ -945,6 +1271,18 @@ func (gps *Gps) Sart(notify chan<- any) {
 			}
 		}
 	}
+}
+
+func (gps *Gps) GetSattelites() []SatInfo {
+	gps.satInfoLock.RLock()
+	defer gps.satInfoLock.RUnlock()
+
+	result := make([]SatInfo, 0, len(gps.satMap))
+	for _, item := range gps.satMap {
+		item.Strength = maps.Clone(item.Strength)
+		result = append(result, item)
+	}
+	return result
 }
 
 // PrintGoogleMapsLink gibt den klickbaren URL-Link in der Konsole aus
