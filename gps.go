@@ -20,9 +20,13 @@ import (
 // https://www.ardusimple.com/nmea-protocol-and-message-description/
 
 // NEO-M9N
+// https://www.u-blox.com/sites/default/files/u-blox-M9-SPG-4.04_InterfaceDescription_UBX-21022436.pdf
+
 const (
-	KNOT_IN_MSEC = (1852.0 / 3600.0)
-	KMH_IN_MSEC  = (1.0 / 3.6)
+	KNOT_IN_MSEC               = (1852.0 / 3600.0)
+	KMH_IN_MSEC                = (1.0 / 3.6)
+	CLEAMUP_INTERVAL           = 5   // sec
+	SATELLITE_TIMEOUT_INTERVAL = 120 // sec
 )
 
 type Trace interface {
@@ -83,6 +87,90 @@ const (
 	Nav3D
 )
 
+type SignalId int
+
+const (
+	SIGNALID_UNKNOWN SignalId = iota
+	GPS_L1CA
+	GPS_L2CL
+	GPS_L2CM
+	GPS_L5I
+	GPS_L5Q
+
+	SBAS_L1CA
+
+	GALILIEO_E1
+	GALILIEO_E5A
+	GALILIEO_E5B
+
+	BEIDOU_B1I
+	BEIDOU_B2I
+	BEIDOU_B2A
+
+	QZSS_L1CA
+	QZSS_L1S
+	QZSS_L2CM
+	QZSS_L2CL
+	QZSS_L5I
+	QZSS_L5Q
+
+	GLONASS_L1OF
+	GLONASS_L2OF
+
+	NAVIC_L5A
+)
+
+func (signalId SignalId) String() string {
+	switch signalId {
+	case SIGNALID_UNKNOWN:
+		return "---"
+	case GPS_L1CA:
+		return "GPS L1 C/A"
+	case GPS_L2CL:
+		return "GPS L2 CL"
+	case GPS_L2CM:
+		return "GPS L2 CM"
+	case GPS_L5I:
+		return "GPS L5 I"
+	case GPS_L5Q:
+		return "GPS L5 Q"
+	case SBAS_L1CA:
+		return "SBAS L1 C/A"
+	case GALILIEO_E1:
+		return "Galileo E1"
+	case GALILIEO_E5A:
+		return "Galileo E5 a"
+	case GALILIEO_E5B:
+		return "Galileo E5 b"
+	case BEIDOU_B1I:
+		return "BeiDou B1 I"
+	case BEIDOU_B2I:
+		return "BeiDou B2 I"
+	case BEIDOU_B2A:
+		return "BeiDou B2 A"
+	case QZSS_L1CA:
+		return "QZSS L1 C/A"
+	case QZSS_L1S:
+		return "QZSS L1 S"
+	case QZSS_L2CM:
+		return "QZSS L2 CM"
+	case QZSS_L2CL:
+		return "QZSS L2 CL"
+	case QZSS_L5I:
+		return "QZSS L5 I"
+	case QZSS_L5Q:
+		return "QZSS L5 Q"
+	case GLONASS_L1OF:
+		return "GLONASS L1 OF"
+	case GLONASS_L2OF:
+		return "GLONASS L2 OF"
+	case NAVIC_L5A:
+		return "NaviC L5A"
+	default:
+		return "???"
+	}
+}
+
 func (n NavMode) String() string {
 	switch n {
 	case NavNoFix:
@@ -126,6 +214,83 @@ type GSV struct {
 	SignalId int
 }
 
+func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
+	switch signalId {
+	case 1:
+		switch gpsNetwork {
+		case NetworkGPS:
+			return GPS_L1CA
+		case NetworkSBAS:
+			return SBAS_L1CA
+		case NetworkGalileo:
+			return GALILIEO_E5A
+		case NetworkBeiDou:
+			return BEIDOU_B1I
+		case NetworkQZSS:
+			return QZSS_L1CA
+		case NetworkGLONASS:
+			return GLONASS_L1OF
+		case NetworkNaviC:
+			return NAVIC_L5A
+		}
+	case 2:
+		switch gpsNetwork {
+		case NetworkGalileo:
+			return GALILIEO_E5B
+		}
+	case 3:
+		switch gpsNetwork {
+		case NetworkGLONASS:
+			return GLONASS_L2OF
+		}
+	case 4:
+		switch gpsNetwork {
+		case NetworkQZSS:
+			return QZSS_L1S
+		}
+	case 5:
+		switch gpsNetwork {
+		case NetworkGPS:
+			return GPS_L2CM
+		case NetworkBeiDou:
+			return BEIDOU_B2A
+		case NetworkQZSS:
+			return QZSS_L2CM
+		}
+	case 6:
+		switch gpsNetwork {
+		case NetworkGPS:
+			return GPS_L2CL
+		case NetworkQZSS:
+			return QZSS_L2CL
+		}
+	case 7:
+		switch gpsNetwork {
+		case NetworkGPS:
+			return GPS_L5I
+		case NetworkGalileo:
+			return GALILIEO_E1
+		case NetworkQZSS:
+			return QZSS_L5I
+		}
+	case 8:
+		switch gpsNetwork {
+		case NetworkGPS:
+			return GPS_L5Q
+		case NetworkQZSS:
+			return QZSS_L5Q
+		}
+	case 11:
+		switch gpsNetwork {
+		case NetworkBeiDou:
+			return BEIDOU_B2I
+		case NetworkQZSS:
+			return QZSS_L5Q
+		}
+	}
+	return SIGNALID_UNKNOWN
+}
+
 func getGpsNetworkFromSatId(id int) GPSNetwork {
 	if id >= 1 && id <= 32 {
 		return NetworkGPS
@@ -148,12 +313,15 @@ func getGpsNetworkFromSatId(id int) GPSNetwork {
 	if id >= 193 && id <= 202 {
 		return NetworkQZSS
 	}
+	if id >= 1 && id <= 14 { // wird nie erreicht
+		return NetworkNaviC
+	}
 	return NetworkUnknown
 }
 
 // Seite 17 der Interface spec
-func (gsv *GSV) getNetwork(sat *SatDataDetail) GPSNetwork {
-	switch gsv.TalkerId {
+func getNetwork(talkerId string, satId, systemId int) GPSNetwork {
+	switch talkerId {
 	case "GP":
 		return NetworkGPS
 	case "GL":
@@ -164,9 +332,33 @@ func (gsv *GSV) getNetwork(sat *SatDataDetail) GPSNetwork {
 		return NetworkGalileo
 	case "GQ":
 		return NetworkQZSS
+	case "GI":
+		return NetworkNaviC
 	default: // GN and unknown - try to identify by satID
-		return getGpsNetworkFromSatId(sat.Id)
+		switch systemId {
+		case 1:
+			if (satId >= 33 && satId <= 64) || (satId >= 152 && satId <= 158) {
+				return NetworkSBAS
+			}
+			return NetworkGPS
+		case 2:
+			return NetworkGLONASS
+		case 3:
+			return NetworkGalileo
+		case 4:
+			return NetworkBeiDou
+		case 5:
+			return NetworkQZSS
+		case 6:
+			return NetworkNaviC
+		default:
+			return getGpsNetworkFromSatId(satId)
+		}
 	}
+}
+
+func (gsv *GSV) getNetwork(sat *SatDataDetail) GPSNetwork {
+	return getNetwork(gsv.TalkerId, sat.Id, -1)
 }
 
 type RMC struct {
@@ -214,36 +406,7 @@ type GSA struct {
 }
 
 func (gsa *GSA) getNetwork(sat *SatData) GPSNetwork {
-	switch gsa.TalkerId {
-	case "GP":
-		return NetworkGPS
-	case "GL":
-		return NetworkGLONASS
-	case "GB":
-		return NetworkBeiDou
-	case "GA":
-		return NetworkGalileo
-	case "GQ":
-		return NetworkQZSS
-	default: // GN and unknown - try to identify by systemId
-		switch gsa.SystemId {
-		case 1:
-			if (sat.Id >= 33 && sat.Id <= 64) || (sat.Id >= 152 && sat.Id <= 158) {
-				return NetworkSBAS
-			}
-			return NetworkGPS
-		case 2:
-			return NetworkGLONASS
-		case 3:
-			return NetworkGalileo
-		case 4:
-			return NetworkBeiDou
-		case 5:
-			return NetworkQZSS
-		default:
-			return getGpsNetworkFromSatId(sat.Id)
-		}
-	}
+	return getNetwork(gsa.TalkerId, sat.Id, gsa.SystemId)
 }
 
 type MsgType int
@@ -267,12 +430,12 @@ type GST struct {
 	TalkerId     string
 	Time         time.Time
 	Rms          float32 // Rms von Satelitten
-	StdMajor     float32 // Fehlerellipse - grosse Achse
-	StdMinor     float32 // Fehlerellipse - kleine Achse
+	StdMajor     float32 // Fehlerellipse - grosse Achse 95% Vertrauenintervall
+	StdMinor     float32 // Fehlerellipse - kleine Achse 95% Vertrauenintervall
 	Orientation  float32 // Fehlerellipse - Orientierung
-	StdLatitude  float32
-	StdLongitude float32
-	StdAltitude  float32
+	StdLatitude  float32 // 68% Vertrauenintervall
+	StdLongitude float32 // 68% Vertrauenintervall
+	StdAltitude  float32 // 68% Vertrauenintervall
 }
 
 func (g *GGA) Print() {
@@ -390,6 +553,7 @@ const (
 	NetworkQZSS
 	NetworkSBAS
 	NetworkIMES
+	NetworkNaviC
 )
 
 func (n GPSNetwork) String() string {
@@ -410,6 +574,8 @@ func (n GPSNetwork) String() string {
 		return "SBAS"
 	case NetworkIMES:
 		return "IMES"
+	case NetworkNaviC:
+		return "NaviC"
 	default:
 		return "???"
 	}
@@ -425,7 +591,7 @@ type SatInfo struct {
 	Id             int
 	Elev           int
 	Azimuth        int
-	Strength       map[int]float32 // SignalID as Key
+	Strength       map[SignalId]float32 // SignalID as Key
 	Used           bool
 	LastUpdate     time.Time
 	LastUsedUpdate time.Time
@@ -438,7 +604,10 @@ func (s *SatInfo) Print() {
 	log.Printf("  Elevation : %d", s.Elev)
 	log.Printf("  Azimuth   : %d", s.Azimuth)
 	log.Printf("  Used      : %v", s.Used)
-	log.Printf("  Strength  : %v", s.Strength)
+	log.Printf("  Strength  :")
+	for key, val := range s.Strength {
+		log.Printf("    %-15s  : %.2f", key.String(), val)
+	}
 }
 
 type GpsData struct {
@@ -501,6 +670,32 @@ func (gps *GpsData) Print() {
 	}
 }
 
+func (gps *GpsData) init() {
+	gps.Time.Store(time.Time{})
+	gps.Latitude.Store(math.Float64bits(math.NaN()))
+	gps.Longitude.Store(math.Float64bits(math.NaN()))
+	gps.Altitude.Store(math.Float32bits(float32(math.NaN())))
+	gps.Speed.Store(math.Float32bits(float32(math.NaN())))
+	gps.CourseTrue.Store(math.Float32bits(float32(math.NaN())))
+	gps.MagVar.Store(math.Float32bits(float32(math.NaN())))
+	gps.Quality.Store(^uint32(0))
+	gps.NavMode.Store(^uint32(0))
+	gps.NumSats.Store(^uint32(0))
+	gps.HDop.Store(math.Float32bits(float32(math.NaN())))
+	gps.VDop.Store(math.Float32bits(float32(math.NaN())))
+	gps.PDop.Store(math.Float32bits(float32(math.NaN())))
+	gps.AltSep.Store(math.Float32bits(float32(math.NaN())))
+	gps.Rms.Store(math.Float32bits(float32(math.NaN())))
+	gps.StdMajor.Store(math.Float32bits(float32(math.NaN())))
+	gps.StdMinor.Store(math.Float32bits(float32(math.NaN())))
+	gps.Orientation.Store(math.Float32bits(float32(math.NaN())))
+	gps.StdLatitude.Store(math.Float32bits(float32(math.NaN())))
+	gps.StdLongitude.Store(math.Float32bits(float32(math.NaN())))
+	gps.StdAltitude.Store(math.Float32bits(float32(math.NaN())))
+	gps.DiffAge.Store(math.Float32bits(float32(math.NaN())))
+	gps.DiffStationId.Store(^uint32(0))
+}
+
 type Gps struct {
 	Messages []any
 	reader   io.Reader
@@ -511,15 +706,18 @@ type Gps struct {
 	satInfoLock sync.RWMutex
 
 	GpsSumData GpsData
+	Trace      bool
 }
 
 func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
-	return &Gps{
+	gps := &Gps{
 		Messages: make([]any, 0, 100),
 		reader:   reader,
 		writer:   writer,
 		satMap:   make(map[satKey]SatInfo, 20),
-	}, nil
+	}
+	gps.GpsSumData.init()
+	return gps, nil
 }
 
 func (gps *Gps) parseFloat32(s string) float32 {
@@ -972,7 +1170,9 @@ func (gps *Gps) appendMessage(msg any) {
 }
 
 func (gps *Gps) parseNmea(line string) {
-	// log.Printf("Line: %s", line)
+	if gps.Trace {
+		log.Printf("Line: %s", line)
+	}
 	sArray, err := gps.verifyNmeaChecksum(line)
 	if err != nil {
 		return
@@ -1052,7 +1252,7 @@ func (gps *Gps) parseNmea(line string) {
 					info = SatInfo{
 						Id:       item.Id,
 						Network:  key.network,
-						Strength: make(map[int]float32, 5),
+						Strength: make(map[SignalId]float32, 5),
 						Azimuth:  -1,
 						Elev:     -1,
 					}
@@ -1096,10 +1296,10 @@ func (gps *Gps) parseNmea(line string) {
 					info = SatInfo{
 						Id:       item.Id,
 						Network:  key.network,
-						Strength: make(map[int]float32, 5),
+						Strength: make(map[SignalId]float32, 5),
 					}
 				}
-				info.Strength[gsv.SignalId] = item.Strength
+				info.Strength[GetSignalId(gsv.SignalId, key.network)] = item.Strength
 				info.Elev = item.Elev
 				info.Azimuth = item.Azimuth
 				info.LastUpdate = time.Now()
@@ -1148,9 +1348,31 @@ func (gps *Gps) ubxChecksum(data []byte) (byte, byte) {
 	return ckA, ckB
 }
 
-func (gps *Gps) SendUBXConfig(layer byte, key uint32, value byte) error {
-	// 1. Payload vorbereiten (9 Bytes)
-	payload := make([]byte, 9)
+func (gps *Gps) SendUBXConfig(layer byte, key uint32, value uint32) error {
+	// 1. Bestimmen, wie groß der Wert ist, basierend auf der u-blox Key-ID.
+	// Die oberen Bits der Key-ID verraten die Datengröße (0x01 = 1-bit, 0x02 = 1-byte, 0x03 = 2-byte, 0x05 = 4-byte)
+
+	// Korrektur: Mit 0x0F maskieren, um das komplette obere Hex-Nibble zu bekommen
+	sizeGroup := (key >> 28) & 0x0F
+	var valueSize int
+
+	switch sizeGroup {
+	case 0x01, 0x02: // 1-Bit oder 1-Byte
+		valueSize = 1
+	case 0x03: // 2-Byte
+		valueSize = 2
+	case 0x04: // 4-Byte (HIER landet jetzt deine Baudrate 0x40520001!)
+		valueSize = 4
+	case 0x05: // 8-Byte
+		valueSize = 8
+	default:
+		valueSize = 1
+	}
+
+	// 2. Payload vorbereiten (8 Bytes Header + dynamische Wertgröße)
+	payloadSize := 8 + valueSize
+	payload := make([]byte, payloadSize)
+
 	payload[0] = 0x00            // Version
 	payload[1] = layer           // 0x01 = RAM, 0x07 = Flash
 	payload[2] = 0x00            // Reserviert
@@ -1159,37 +1381,40 @@ func (gps *Gps) SendUBXConfig(layer byte, key uint32, value byte) error {
 	payload[5] = byte(key >> 8)  // Key Byte 1
 	payload[6] = byte(key >> 16) // Key Byte 2
 	payload[7] = byte(key >> 24) // Key Byte 3
-	payload[8] = value           // Der eigentliche Wert (z.B. 43 für NMEA 4.11)
 
-	// 2. Header vorbereiten (6 Bytes)
+	// Wert in Little Endian in die Payload schreiben
+	for i := 0; i < valueSize; i++ {
+		payload[8+i] = byte(value >> (8 * i))
+	}
+
+	// 3. Header vorbereiten (6 Bytes)
 	header := []byte{
 		0xB5, 0x62, // Sync Chars
 		0x06, 0x8A, // Class (0x06) & ID (0x8A) für UBX-CFG-VALSET
-		byte(len(payload)), byte(len(payload) >> 8), // Länge der Payload (9)
+		byte(len(payload)), byte(len(payload) >> 8), // Dynamische Länge der Payload
 	}
 
-	// 3. Komplettes Paket zusammensetzen
+	// 4. Komplettes Paket zusammensetzen
 	packet := append(header, payload...)
 
+	// Prüfsumme berechnen (ohne die ersten zwei Sync-Chars)
 	cka, ckb := gps.ubxChecksum(packet[2:])
-
-	// Prüfsummen-Bytes anhängen
 	packet = append(packet, cka, ckb)
 
-	// 5. Paket über deinen UART-Writer abschicken
+	// 5. Paket abschicken
 	_, err := gps.writer.Write(packet)
 	return err
 }
 
 func (gps *Gps) doSatMapCleanup() {
 	for {
-		time.Sleep(5 * time.Second)
+		time.Sleep(CLEAMUP_INTERVAL * time.Second)
 		gps.satInfoLock.Lock()
 		now := time.Now()
 		for key, item := range gps.satMap {
-			if now.Sub(item.LastUpdate) > 150*time.Second {
+			if now.Sub(item.LastUpdate) > SATELLITE_TIMEOUT_INTERVAL*time.Second {
 				delete(gps.satMap, key)
-			} else if item.Used && now.Sub(item.LastUsedUpdate) > 5*time.Second {
+			} else if item.Used && now.Sub(item.LastUsedUpdate) > CLEAMUP_INTERVAL*time.Second {
 				item.Used = false
 				gps.satMap[key] = item
 			}
@@ -1198,15 +1423,18 @@ func (gps *Gps) doSatMapCleanup() {
 	}
 }
 
-func (gps *Gps) Start(notify chan<- any) {
+func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 	gps.notify = notify
 	reader := bufio.NewReader(gps.reader)
-	gps.SendUBXConfig(0x01, 0x20930001, 41) // NMEA 4.11
-	gps.SendUBXConfig(0x01, 0x20930007, 1)  // Extended einschalten
-	gps.SendUBXConfig(0x01, 0x209100d4, 1)  // GST einschalten
-	gps.SendUBXConfig(0x01, 0x20910087, 1)  // TXT einschalten
-	// gps.SendUBXConfig(0x01, 0x209100b2, 1)  // GNS einschalten ???
-	gps.SendUBXConfig(0x01, 0x209100b7, 1) // VTG einschalten
+	if isUbx {
+		// gps.SendUBXConfig(0x01, 0x40520001, 115200)
+		gps.SendUBXConfig(0x01, 0x20930001, 41) // NMEA 4.11
+		gps.SendUBXConfig(0x01, 0x20930007, 1)  // Extended einschalten
+		gps.SendUBXConfig(0x01, 0x209100d4, 1)  // GST einschalten
+		gps.SendUBXConfig(0x01, 0x20910087, 1)  // TXT einschalten
+		// gps.SendUBXConfig(0x01, 0x209100b2, 1)  // GNS einschalten ???
+		gps.SendUBXConfig(0x01, 0x209100b7, 1) // VTG einschalten
+	}
 
 	go gps.doSatMapCleanup()
 
@@ -1224,6 +1452,7 @@ func (gps *Gps) Start(notify chan<- any) {
 			line = "$" + line
 			gps.parseNmea(line)
 
+		// UBX stuff
 		case 0xB5:
 			// UBX: zweites Synchronisationsbyte prüfen
 			b2, err := reader.ReadByte()

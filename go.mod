@@ -1,4 +1,4 @@
-module sertest
+module github.com/bytemystery-com/gps
 
 go 1.26.10
 
