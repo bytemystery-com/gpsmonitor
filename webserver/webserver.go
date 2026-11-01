@@ -58,27 +58,30 @@ const (
 	WS_SESSION_COOKIE_NAME_SSL = "session_id-ssl"
 )
 
-type HasErrors interface {
-	GetErrors() uint
-}
-
-type WebData struct {
-	SensorName string `json:"name"`
-	Errors     uint   `json:"errors"`
-	Valid      bool   `json:"valid"`
-}
-
-func (w WebData) GetErrors() uint {
-	return w.Errors
+type WebDataGps struct {
+	Longitude    *float64   `json:"lo"`
+	Latitude     *float64   `json:"la"`
+	Altitude     *float32   `json:"al"`
+	Speed        *float32   `json:"sp"`
+	Course       *float32   `json:"co"`
+	MagVar       *float32   `json:"mv"`
+	Mode         *int       `json:"mo"`
+	Quality      *int       `json:"qu"`
+	NumUsedSats  *int       `json:"su"`
+	NumTotalSats *int       `json:"st"`
+	StdLongitude *float32   `json:"stlo"`
+	StdLatitude  *float32   `json:"stla"`
+	StdAltitude  *float32   `json:"stal"`
+	DateTime     *time.Time `json:"dt"`
 }
 
 type WebDataSat struct {
-	WebData
 	// DewPoint2    float32 `json:"dewpoint2"`
 }
 
 type WebDataAll struct {
-	Sat WebDataSat
+	Sats WebDataSat `json:"sats"`
+	Gps  WebDataGps `json:"gps"`
 }
 
 type WebCallBacks interface {
@@ -181,30 +184,11 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	type dataJson struct {
-		Config config `json:"config"`
-		Status status `json:"status"`
+		Config config     `json:"config"`
+		Status status     `json:"status"`
+		Data   WebDataAll `json:"data"`
 	}
-	list := make([]any, 0, 3)
-	list = append(list, data.Sat)
 
-	var t timed
-	now := time.Now()
-	t.Day = now.Day()
-	t.Wday = int(now.Weekday())
-	t.Month = int(now.Month())
-	t.Year = now.Year()
-	t.Hour = now.Hour()
-	t.Min = now.Minute()
-	t.Sec = now.Second()
-	t.Dst = ws.isDST(now)
-
-	var errors uint
-	for _, item := range list {
-		data, ok := item.(HasErrors)
-		if ok {
-			errors += data.GetErrors()
-		}
-	}
 	raspiRpm, _ := raspi.GetFanRPM()
 	raspiCpu, _ := raspi.GetCpuUsage()
 	raspiCpuFreq, _ := raspi.GetCPUFrequency()
@@ -242,8 +226,12 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 				WifiTx:       raspiWifiTx,
 			},
 		},
+		Data: *data,
 	}
-	b, _ := json.Marshal(dj)
+	b, err := json.Marshal(dj)
+	if err != nil {
+		return
+	}
 	// log.Print(string(b))
 	w.Write(b)
 }

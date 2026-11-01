@@ -26,10 +26,12 @@ package data
 
 import (
 	"gpsmonitord/cfg"
+	"gpsmonitord/gps"
 	"gpsmonitord/webserver"
 )
 
 type Data struct {
 	WebServer *webserver.WebServer
 	Config    *cfg.Cfg
+	Gps       *gps.Gps
 }

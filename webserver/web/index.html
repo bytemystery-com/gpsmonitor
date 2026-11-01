@@ -17,68 +17,64 @@
 	<body onload="doLoad()">
 		<div class="siteframe">
 			<div class="container">
-				<fieldset class="box fieldset_box"><legend class="legend" id="summary_caption">Summary</legend>
+				<fieldset class="box fieldset_box"><legend class="legend" id="summary_caption">GPD Data</legend>
 					<div class="table_cell" id="summary_display">
 					<table  class="status_table">
-						<tr class="status_tr" id="summary_tr_temperature">
-							<td class="status_key">Temperature</td>
-							<td class="status_value" id="summary_temperature">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_latitude">
+							<td class="status_key">Latitude</td>
+							<td class="status_value" id="summary_latitude">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_temperature2">
-							<td class="status_key">Temperature 2</td>
-							<td class="status_value" id="summary_temperature2">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_longitude">
+							<td class="status_key">Longitude</td>
+							<td class="status_value" id="summary_longitude">&nbsp;</td>
 						</tr>
-						<tr class="status_tr"  id="summary_tr_humidity">
-							<td class="status_key">Humidity</td>
-							<td class="status_value" id="summary_humidity">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_height">
+							<td class="status_key">Height (NN)</td>
+							<td class="status_value" id="summary_height">&nbsp;</td>
 						</tr>
-						<tr class="status_tr"  id="summary_tr_humidity2">
-							<td class="status_key">Humidity 2</td>
-							<td class="status_value" id="summary_humidity2">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_speed">
+							<td class="status_key">Speed</td>
+							<td class="status_value" id="summary_speed">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_dewpoint">
-							<td class="status_key">Dew point</td>
-							<td class="status_value" id="summary_dewpoint">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_course">
+							<td class="status_key">Course</td>
+							<td class="status_value" id="summary_course">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_dewpoint2">
-							<td class="status_key">Dew point 2</td>
-							<td class="status_value" id="summary_dewpoint2">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_magvar">
+							<td class="status_key">Magnetic variation</td>
+							<td class="status_value" id="summary_magvar">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_wetbulb">
-							<td class="status_key">Wet bulb</td>
-							<td class="status_value" id="summary_wetbulb">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_mode">
+							<td class="status_key">Mode</td>
+							<td class="status_value" id="summary_mode">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_wetbulb2">
-							<td class="status_key">Wet bulb 2</td>
-							<td class="status_value" id="summary_wetbulb2">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_quality">
+							<td class="status_key">Quality</td>
+							<td class="status_value" id="summary_quality">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_pressure">
-							<td class="status_key">Pressure</td>
-							<td class="status_value" id="summary_pressure">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_nsats">
+							<td class="status_key">Sats</td>
+							<td class="status_value" id="summary_nsats">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_pressure2">
-							<td class="status_key">Pressure 2</td>
-							<td class="status_value" id="summary_pressure2">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_stdlatitude">
+							<td class="status_key">Std. Latitude</td>
+							<td class="status_value" id="summary_stdlatitude">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_pressure_trend">
-							<td class="status_key">Trend (3 / 1)</td>
-							<td class="status_value" id="summary_pressure_trend">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_stdlongitude">
+							<td class="status_key">Std. Longitude</td>
+							<td class="status_value" id="summary_stdlongitude">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_lux">
-							<td class="status_key">Lux</td>
-							<td class="status_value" id="summary_lux">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_stdaltitude">
+							<td class="status_key">Std. Height</td>
+							<td class="status_value" id="summary_stdaltitude">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_lux2">
-							<td class="status_key">Lux 2</td>
-							<td class="status_value" id="summary_lux2">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_date">
+							<td class="status_key">Date</td>
+							<td class="status_value" id="summary_date">&nbsp;</td>
 						</tr>
-						<tr class="status_tr" id="summary_tr_errors">
-							<td class="status_key">Errors</td>
-							<td class="status_value" id="summary_errors">&nbsp;</td>
-						</tr>
-						<tr class="status_tr" id="summary_tr_sensors">
-							<td class="status_key">Sensors</td>
-							<td class="status_value" id="summary_sensors">&nbsp;</td>
+						<tr class="status_tr" id="summary_tr_time">
+							<td class="status_key">Time</td>
+							<td class="status_value" id="summary_time">&nbsp;</td>
 						</tr>
 						<tr class="status_tr" id="summary_tr_version">
 							<td class="status_key">Version</td>
@@ -90,7 +86,7 @@
 			</div>
 
 			<div class="container">
-				<fieldset class="box fieldset_box" id="sysstat_box"><legend class="box_legend" id="status_caption">System</legend>
+				<fieldset class="box fieldset_box" id="sysstat_box"><legend class="legend" id="status_caption">System</legend>
 					<div class="tablecell" id="sysstat">
 						<table  class="status_table">
 							<tr class="status_tr" id="sysstat_tr_temperature">
@@ -133,21 +129,9 @@
 								<td class="status_key">Serial</td>
 								<td class="status_value" id="sysstat_serial">&nbsp;</td>
 							</tr>
-							<tr class="status_tr" id="sysstat_tr_sd">
-								<td class="status_key">SD card (f / t)</td>
-								<td class="status_value" id="sysstat_sd">&nbsp;</td>
-							</tr>
 							<tr class="status_tr" id="sysstat_tr_wifi">
 								<td class="status_key">Wifi</td>
 								<td class="status_value" id="sysstat_wifi">&nbsp;</td>
-							</tr>
-							<tr class="status_tr" id="sysstat_tr_date">
-								<td class="status_key">Date</td>
-								<td class="status_value" id="sysstat_date">&nbsp;</td>
-							</tr>
-							<tr class="status_tr" id="sysstat_tr_time">
-								<td class="status_key">Time</td>
-								<td class="status_value" id="sysstat_time">&nbsp;</td>
 							</tr>
 							<tr class="status_tr" id="sysstat_tr_uptime">
 								<td class="status_key">Uptime</td>
@@ -167,7 +151,7 @@
 			<div class="break">&nbsp;</div>
                
 			<div class="container">
-				<fieldset class="box svg_status" id="gps_box"><legend class="box_legend" id="status_caption">GPS</legend>
+				<fieldset class="box svg_status" id="gps_box"><legend class="legend legend_svg" id="status_caption">GPS</legend>
 					<div class="svg_tablecell" id="svg_table">
 						<svg id="gps_svg" class="gps_view" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 							<g id="gps_frame">

@@ -12,8 +12,8 @@ gpsViews.push(gpsView);
 function doLoad()
 {
 	doLoadGpsViews();
-	// doStart();
-	// doPeriodic();
+	doStart();
+	doPeriodic();
 	
 	if ((tmp = document.getElementById("version")))
 		tmp.textContent = version;
@@ -21,12 +21,6 @@ function doLoad()
 
 function doLoadGpsViews()
 {
-	window.addEventListener("resize", function(event)
-		{
-			// doPeriodicGpsView();
-		}
-	);
-
 	gpsViews.forEach(function(view)
 	{
 		view.doInit();
@@ -116,140 +110,107 @@ function doPeriodic()
 					}
 				}
 
-				if (json.status.time !== undefined)
-				{
-					var wday = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
-					var date_str = wday[json.status.time.wday] + ", " + (json.status.time.day < 10 ? "0" : "") + json.status.time.day + "." + (json.status.time.month < 10 ? "0" : "") + json.status.time.month + "." + json.status.time.year;
-					var time_str = (json.status.time.hour < 10 ? "0" : "") + json.status.time.hour + ":" + (json.status.time.min < 10 ? "0" : "") + json.status.time.min + ":" + (json.status.time.sec < 10 ? "0" : "") + json.status.time.sec;
-					if ((tmp = document.getElementById("status_date")))
-						tmp.textContent = date_str;
-					if ((tmp = document.getElementById("sysstat_date")))
-						tmp.textContent = date_str;
-					if ((tmp = document.getElementById("status_time")))
-						tmp.textContent = time_str;
-					if ((tmp = document.getElementById("sysstat_time")))
-						tmp.textContent = time_str;
-				}
-				else
-				{
-					if ((tmp = document.getElementById("status_tr_date")))
-						tmp.style.display = 'none';
-					if ((tmp = document.getElementById("status_tr_time")))
-						tmp.style.display = 'none';
-				}
-				
-				if (json.status.version !== undefined)
-				{
-					if ((tmp = document.getElementById("summary_version")))
-						tmp.textContent = json.status.version;
-				}
-				else
-				{
-					if ((tmp = document.getElementById("summary_tr_version")))
-						tmp.style.display = 'none';
-				}
-				
-				if (json.status.uptime !== undefined)
-				{
-					if ((tmp = document.getElementById("sysstat_uptime")))
-						tmp.textContent = json.status.uptime;
-				}
-				else
-				{
-					if ((tmp = document.getElementById("sysstat_tr_uptime")))
-						tmp.style.display = 'none';
-				}
-				
-				if (tmp = document.getElementById("summary_temperature"))
-					tmp.textContent = json.sensors[1].temperature.toFixed(1) + " (" + json.sensors[0].temperature.toFixed(1) + ") °C";
-				if (tmp = document.getElementById("summary_temperature2"))
-					tmp.textContent = json.sensors[1].temperature2.toFixed(1) + " (" + json.sensors[0].temperature2.toFixed(1) + ") °C";
-				if (tmp = document.getElementById("summary_humidity"))
-					tmp.textContent = json.sensors[1].humidity.toFixed(1) + " % rel";
-				if (tmp = document.getElementById("summary_humidity2"))
-					tmp.textContent = json.sensors[1].humidity2.toFixed(1) + " % rel";
-				if (tmp = document.getElementById("summary_dewpoint"))
-					tmp.textContent = json.sensors[1].dewpoint.toFixed(1) + " °C";
-				if (tmp = document.getElementById("summary_dewpoint2"))
-					tmp.textContent = json.sensors[1].dewpoint2.toFixed(1) + " °C";
-				if (tmp = document.getElementById("summary_pressure"))
-					tmp.textContent = json.sensors[0].pressure.toFixed(1) + " / " + json.sensors[0].pressure_normal.toFixed(1) + " hPa";
-				if (tmp = document.getElementById("summary_pressure2"))
-					tmp.textContent = json.sensors[0].pressure2.toFixed(1) + " / " + json.sensors[0].pressure2_normal.toFixed(1) + " hPa";
-				if (tmp = document.getElementById("summary_pressure_trend"))
-					tmp.textContent = json.status.pressure_trend_3.toFixed(2) + " / " + json.status.pressure_trend_1.toFixed(2) + " hPa/h";
-				if (tmp = document.getElementById("summary_wetbulb"))
-					tmp.textContent = json.status.wet_bulb.toFixed(1) + " °C";
-				if (tmp = document.getElementById("summary_wetbulb2"))
-					tmp.textContent = json.status.wet_bulb2.toFixed(1) + " °C";
-				if (tmp = document.getElementById("summary_lux"))
-					tmp.textContent = json.sensors[2].lux.toFixed(1) + " lx";
-				if (tmp = document.getElementById("summary_lux2"))
-					tmp.textContent = json.sensors[2].lux2.toFixed(1) + " lx";
-				if (tmp = document.getElementById("summary_errors"))
-					tmp.textContent = json.status.errors + " / " + json.status.resets;
-				if (tmp = document.getElementById("summary_sensors"))
-					tmp.textContent = json.sensors.map(sensor => sensor.name).join(", ").toLowerCase();
-				
+				setValue("sysstat_uptime", "sysstat_tr_uptime", json.status.uptime, null);
 				if (json.status.raspi !== undefined)
 				{
-					if (tmp = document.getElementById("sysstat_fan"))
-						tmp.textContent = json.status.raspi.fan + " rpm";
-					if (tmp = document.getElementById("sysstat_cpu"))
-						tmp.textContent = (json.status.raspi.cpu/10.0).toFixed(1) + " %";
-					if (tmp = document.getElementById("sysstat_cpu_freq"))
-						tmp.textContent = (json.status.raspi.cpu_freq/1000.0).toFixed(2) + " GHz";
-					if (tmp = document.getElementById("sysstat_temperature"))
-						tmp.textContent = (json.status.raspi.temp/10.0).toFixed(1) + " °C";
-					if (tmp = document.getElementById("sysstat_5volt"))
-						tmp.textContent = (json.status.raspi.voltage_5/1000.0).toFixed(2) + " V";
-					if (tmp = document.getElementById("sysstat_3volt"))
-						tmp.textContent = (json.status.raspi.voltage_3/1000.0).toFixed(2) + " V";
-					if (tmp = document.getElementById("sysstat_max_current"))
-						tmp.textContent = (json.status.raspi.max_current/1000.0).toFixed(1) + " A";
-					if (tmp = document.getElementById("sysstat_serial"))
-						tmp.textContent = json.status.raspi.serial;
-					if (tmp = document.getElementById("sysstat_throttle"))
-						tmp.textContent = "0x" + (json.status.raspi.throttle.toString(16).padStart(8, "0"));
-					if (tmp = document.getElementById("sysstat_version"))
-					{
-						const major = (json.status.raspi.version >> 8) & 0xFF;
-						const minor = json.status.raspi.version & 0xFF;
-						tmp.textContent = major + "." + minor;
-					}
-					if (tmp = document.getElementById("sysstat_ram"))
-					{
-						tmp.textContent = kB2Str(json.status.raspi.ram_u) + " / " + kB2Str(json.status.raspi.ram_t);
-					}
+					const raspi = json.status.raspi
+					setValue("sysstat_fan", "sysstat_tr_fan", raspi.fan, (val) =>  val + " rpm");
+					setValue("sysstat_cpu", "sysstat_tr_cpu", raspi.cpu, (val) =>  (val/10.0).toFixed(1) + " %");
+					setValue("sysstat_cpu_freq", "sysstat_tr_cpu_freq", raspi.cpu_freq, (val) =>  (val/1000.0).toFixed(2) + " GHz");
+					setValue("sysstat_temperature", "sysstat_tr_temperature", raspi.temp, (val) =>  (val/10.0).toFixed(1) + " °C");
+					setValue("sysstat_5volt", "sysstat_tr_5volt", raspi.voltage_5, (val) =>  (val/1000.0).toFixed(2) + " V");
+					setValue("sysstat_3volt", "sysstat_tr_3volt", raspi.voltage_3, (val) =>  (val/1000.0).toFixed(2) + " V");
+					setValue("sysstat_max_current", "sysstat_tr_max_current", raspi.max_current, (val) =>  (val/1000.0).toFixed(1) + " A");
+					setValue("sysstat_serial", "sysstat_tr_serial", raspi.serial, null);
+					setValue("sysstat_throttle", "sysstat_tr_throttle", raspi.throttle, (val) => val.toString(16).padStart(8, "0"));
+					setValue("sysstat_version", "sysstat_tr_version", raspi.version, (val) => {
+						const major = (raspi.version >> 8) & 0xFF;
+						const minor = raspi.version & 0xFF;
+						return major + "." + minor;
+					});
+					if (raspi.ram_u !== undefined && raspi.ram_t !== undefined)
+						setValue("sysstat_ram", "sysstat_tr_ram", raspi.ram_u, (val) => kB2Str(val) + " / " + kB2Str(raspi.ram_t));
+					else 
+						hideElement("sysstat_tr_ram")
+					if (raspi.wifi_strength !== undefined && raspi.wifi_rx !== undefined && raspi.wifi_tx !== undefined)
+						setValue("sysstat_wifi", "sysstat_tr_wifi", raspi.wifi_strength, (val) => val + " dBm / " + kB2Str(raspi.wifi_rx + raspi.wifi_tx));
+					else
+						hideElement("sysstat_tr_wifi")
+				}
+				// GPS data
+				setValue("summary_version", "summary_tr_version", json.status.version, null);
+				const gps = json.data.gps
+				if (gps !== undefined) {
+					setValue("summary_latitude", "summary_tr_latitude", gps.la, (val) => val.toFixed(6));
+					setValue("summary_longitude", "summary_tr_longitude", gps.lo, (val) => val.toFixed(6));
+					setValue("summary_height", "summary_tr_height", gps.al, (val) => val.toFixed(1) + " m");
+					setValue("summary_speed", "summary_tr_speed", gps.sp, (val) => val.toFixed(2) + " m/s");
+					setValue("summary_course", "summary_tr_course", gps.co, (val) => val.toFixed(2) + " °");
+					setValue("summary_magvar", "summary_tr_magbar", gps.mv, (val) => val.toFixed(2) + " °");
+					setValue("summary_mode", "summary_tr_mode", gps.mo, (val) => {
+						switch (val) {
+							case 0:
+								return "No fix"
+							case 1:
+								return "2D"
+							case 3:
+								return "3D"
+							default :
+								return "!!!"
+
+						}});
+					setValue("summary_quality", "summary_tr_quality", gps.qu, (val) => {
+						switch (val) {
+							case 0:
+								return "No fix"
+							case 1:
+								return "Normal fix"
+							case 2:
+								return "Diff Fix"
+							case 3:
+								return "PPS Fix"
+							case 4:
+								return "RTK Fix"
+							case 5:
+								return "RTK Float"
+							case 5:
+								return "Estimated"
+							case 6:
+								return "Manual"
+							case 7:
+								return "Simulation"
+							default :
+								return "!!!"
+						}
+					});
+					setValue("summary_nsats", "summary_tr_nsats", gps.su, (val) => val + " / " + (gps.st != null ? gps.st : "---"));
+					setValue("summary_stdlatitude", "summary_tr_stdlatitude", gps.stla, (val) => val.toFixed(2) + " m");
+					setValue("summary_stdlongitude", "summary_tr_stdlongitude", gps.stlo, (val) => val.toFixed(2) + " m");
+					setValue("summary_stdaltitude", "summary_tr_altitude", gps.stal, (val) => val.toFixed(1) + " m");
+					setValue("summary_date", "summary_tr_date", gps.dt, (val) => {
+						const date = new Date(val);
+
+						const formattedString = new Intl.DateTimeFormat('de-De', {
+							weekday: 'short', // "Mo"
+							day: 'numeric',   // "2" (ohne führende Null)
+							month: 'numeric', // "11"
+							year: 'numeric'   // "2026"
+						}).format(date);
+						return formattedString
+					});
+					setValue("summary_time", "summary_tr_time", gps.dt, (val) => {
+						const date = new Date(val);
+
+						const formattedString = new Intl.DateTimeFormat('de-De', {
+							hour: '2-digit',   // "20"
+							minute: '2-digit', // "03"
+							second: '2-digit', // "12"
+							hour12: false      // Erzwingt 24-Stunden-Format
+						}).format(date);
+						return formattedString
+					});
 				}
 
-				if (json.status.sd !== undefined)
-				{
-					if ((tmp = document.getElementById("sysstat_sd")))
-						tmp.textContent = kB2Str(json.status.sd.free) + " / " + kB2Str(json.status.sd.total);
-				}
-				else
-				{
-					if ((tmp = document.getElementById("sysstat_tr_sd")))
-						tmp.style.display = 'none';
-				}
-				
-				if (json.status.raspi.wifi_strength !== undefined && json.status.raspi.wifi_rx !== undefined && json.status.raspi.wifi_tx !== undefined)
-				{
-					if ((tmp = document.getElementById("sysstat_wifi")))
-						tmp.textContent = json.status.raspi.wifi_strength + " dBm / " + kB2Str(json.status.raspi.wifi_rx + json.status.raspi.wifi_tx);
-				}
-				else
-				{
-					if ((tmp = document.getElementById("sysstat_tr_wifi")))
-						tmp.style.display = 'none';
-				}
-
-				/*
-				if ((tmp = document.getElementById("summary_inttemp")))
-					tmp.textContent = json.sensors[json.sensors.length - 1].temperature + " °C";
-				*/
-				
 			} // response != NULL
 
 			data_request = null;
@@ -300,3 +261,26 @@ function log(msg)
 	if (debug && window.console)
 		console.log(msg);
 }
+
+function hideElement(id) {
+	const tmp = document.getElementById(id) 
+	if (tmp)
+		tmp.style.display = 'none';
+}
+
+function setValue(id, container, val, convert) {
+	const tmp = document.getElementById(id) 
+	if (!tmp) return
+	if (val === undefined) {
+		hideElement(container)
+	} else {
+		if (val == null) {
+			tmp.textContent = "---";
+		} else {
+			if (convert && (typeof convert === 'function'))
+				val = convert(val)
+			tmp.textContent = val;
+		}
+	}
+}
+

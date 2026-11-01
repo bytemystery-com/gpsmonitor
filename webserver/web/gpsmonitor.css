@@ -10,11 +10,6 @@ body
 	-o-user-select: none;
 }
 
-legend
-{
-	font-weight: bold;
-}
-
 .siteframe
 {
 	width: 94%;
@@ -71,6 +66,12 @@ legend
 .legend
 {
 	color: rgb(0, 0, 0);
+	font-weight: bold;
+}
+
+.legend_svg
+{
+	padding-left: 17px
 }
 
 /* Table */
@@ -84,15 +85,16 @@ legend
 .status_key
 {
 	font-weight: bold;
-	width: 45%;
+	width: 55%;
 }
 
 .status_value
 {
-	padding-left: 10px;
+	padding-left: 25px;
 	padding-top: 5px;
 	padding-bottom: 5px;
-	width: 55%;
+	padding-right: 0px;
+	width: 45%;
     white-space: nowrap;
 }
 /*---*/
@@ -102,9 +104,10 @@ legend
     float: left;
   	width: auto;
     height: auto;
-	padding: 0;
+	padding: 0 0 0 0;
 	margin: 0;
 	aspect-ratio: 1 / 1; 
+    vertical-align: top;
 }
 
 .svg_tablecell {
@@ -112,6 +115,7 @@ legend
     width: 100%;
 	padding: 0;
 	margin: 0;
+    vertical-align: top;
 }
 /*---*/
 

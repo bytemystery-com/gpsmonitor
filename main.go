@@ -28,7 +28,9 @@ package main
 
 import (
 	"log"
+	"math"
 	"os"
+	"sync/atomic"
 	"time"
 
 	"gpsmonitord/cfg"
@@ -45,8 +47,59 @@ type WebCallbacksImpl struct{}
 
 var _ webserver.WebCallBacks = (*WebCallbacksImpl)(nil)
 
+func getFloat32ForJsonFromAtomic(val *atomic.Uint32) *float32 {
+	v := math.Float32frombits(val.Load())
+	if math.IsNaN(float64(v)) {
+		return nil
+	}
+	return &v
+}
+
+func getFloat64ForJsonFromAtomic(val *atomic.Uint64) *float64 {
+	v := math.Float64frombits(val.Load())
+	if math.IsNaN(v) {
+		return nil
+	}
+	return &v
+}
+
+func getIntForJsonFromAtomic(val *atomic.Uint32) *int {
+	v := val.Load()
+	if v == ^uint32(0) {
+		return nil
+	}
+	vi := int(v)
+	return &vi
+}
+
+func getTimeForJsonFromAtomic(val *atomic.Value) *time.Time {
+	v, ok := val.Load().(time.Time)
+	if !ok || v.IsZero() {
+		return nil
+	}
+	return &v
+}
+
 func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
-	return nil
+	data := webserver.WebDataAll{
+		Gps: webserver.WebDataGps{
+			Longitude:    getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
+			Latitude:     getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
+			Altitude:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
+			Speed:        getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
+			Course:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
+			MagVar:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
+			Mode:         getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
+			Quality:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
+			NumUsedSats:  getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NumSats),
+			NumTotalSats: nil, // TODO
+			StdLongitude: getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLongitude),
+			StdLatitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLatitude),
+			StdAltitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdAltitude),
+			DateTime:     getTimeForJsonFromAtomic(&Data.Gps.GpsSumData.Time),
+		},
+	}
+	return &data
 }
 
 func main() {
@@ -87,6 +140,7 @@ func main() {
 		port.Close()
 		return
 	}
+	Data.Gps = g
 	go g.Start(nil, true)
 
 	var callBacks WebCallbacksImpl

@@ -11,7 +11,7 @@ class GpsView {
 		}
 		// 2. Die neue viewBox als Text-String setzen
 		// Format: "X-Start Y-Start Gesamtbreite Gesamthöhe"
-		svg.setAttribute("viewBox", "-1.12 -1.12 2.24 2.24");
+		svg.setAttribute("viewBox", "-1.15 -1.15 2.3 2.3");
 		let back = document.getElementById(this.prefix + "back");
 		removeAllChilds(back);
 		this.paintBackground()
@@ -167,7 +167,7 @@ class GpsView {
 		labelS.setAttribute("font-family", fontFamily);
 		labelS.setAttribute("font-weight", fontWeight);
 		labelS.textContent = "S";
-	    labelS.setAttribute("y", 1.0);
+	    labelS.setAttribute("y", 1.0 + textSize.height/5.0);
 	    fragment.appendChild(labelS);
 
 		lines.append(fragment)
