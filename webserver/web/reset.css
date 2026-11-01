@@ -1,0 +1,31 @@
+/* Der moderne, schlanke Reset für zeitgemäße Projekte */
+
+/* 1. Das wichtigste Feature: Padding/Border vergrößern Boxen nicht mehr unabsichtlich */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* 2. Standard-Abstände entfernen */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+/* 3. Text-Verhalten verbessern */
+body {
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 4. Formular-Elemente erben die Schriftart statt eigene Standards zu nutzen */
+input, button, textarea, select {
+  font: inherit;
+}
+
+/* 5. Bilder und SVGs verhalten sich responsiv */
+img, svg {
+  display: block;
+  max-width: 100%;
+}

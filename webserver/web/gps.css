@@ -1,0 +1,39 @@
+
+:root {
+  --gps-back_color: #000000;
+  --gps-main_axis_color: #e9e9e9;
+  --gps-main_axis_stroke_width: 2; /* in Pixel */
+  --gps-help_axis_color: #e9e9e9;
+  --gps-help_axis_stroke_width: 1; /* in Pixel */
+  --gps-help_axis_dash: "10, 10"; /* in Pixel */
+  --gps-help_circle_color: #e9e9e9;
+  --gps-help_circle_stroke_width: 1; /* in Pixel */
+  --gps-help_circle_dash: "10, 10"; /* in Pixel */
+  --gps-axis_text_font_size: 0.08;
+  --gps-axis_text_color: #0000FF;
+  --gps-axis_text_font_family: sans-serif;
+  --gps-axis_text_font_weight: bold;
+}
+
+.gps_base:focus
+{
+    outline: 0;
+}
+
+.gps_view
+{
+	display: block;
+  	width: calc(2 * 22em + 10px);
+    height: auto;
+	aspect-ratio: 1 / 1; 
+	padding: 10px;
+	/* Sorgt dafür, dass das Padding den Kasten nicht vergrößert */
+	box-sizing: border-box;	
+	margin: 5px;
+}
+
+@media (max-width: 49.45em) {
+    .gps_view {
+        width: calc(22em - 10px)
+    }
+}
