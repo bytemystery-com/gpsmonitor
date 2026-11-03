@@ -10,7 +10,7 @@
   --gps-help_circle_stroke_width: 1; /* in Pixel */
   --gps-help_circle_dash: "10, 10"; /* in Pixel */
   --gps-axis_text_font_size: 0.08;
-  --gps-axis_text_color: #0000FF;
+  --gps-axis_text_color: auto;
   --gps-axis_text_font_family: sans-serif;
   --gps-axis_text_font_weight: bold;
   --gps-sat_network_0_color: #dedede; /* Other */

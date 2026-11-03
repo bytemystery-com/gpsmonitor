@@ -81,28 +81,31 @@ func getTimeForJsonFromAtomic(val *atomic.Value) *time.Time {
 }
 
 func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
-	sats := Data.Gps.GetSattelites()
-	total := len(sats)
-	data := webserver.WebDataAll{
-		Gps: webserver.WebDataGps{
-			Longitude:    getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
-			Latitude:     getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
-			Altitude:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
-			Speed:        getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
-			Course:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
-			MagVar:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
-			Mode:         getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
-			Quality:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
-			NumUsedSats:  getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NumSats),
-			NumTotalSats: &total,
-			StdLongitude: getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLongitude),
-			StdLatitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLatitude),
-			StdAltitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdAltitude),
-			DateTime:     getTimeForJsonFromAtomic(&Data.Gps.GpsSumData.Time),
-		},
-		Sats: sats,
+	if Data.Gps.GpsSumData.IsReady.Load() {
+		sats := Data.Gps.GetSattelites()
+		total := len(sats)
+		data := webserver.WebDataAll{
+			Gps: webserver.WebDataGps{
+				Longitude:    getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
+				Latitude:     getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
+				Altitude:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
+				Speed:        getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
+				Course:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
+				MagVar:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
+				Mode:         getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
+				Quality:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
+				NumUsedSats:  getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NumSats),
+				NumTotalSats: &total,
+				StdLongitude: getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLongitude),
+				StdLatitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLatitude),
+				StdAltitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdAltitude),
+				DateTime:     getTimeForJsonFromAtomic(&Data.Gps.GpsSumData.Time),
+			},
+			Sats: sats,
+		}
+		return &data
 	}
-	return &data
+	return nil
 }
 
 func main() {
@@ -138,7 +141,10 @@ func main() {
 	if err != nil {
 		log.Printf("open port failed %v", err)
 	}
-	g, err := gps.NewGps(port, port)
+	g, err := gps.NewGps(port, port, func() {
+		port.ResetOutputBuffer()
+		port.ResetInputBuffer()
+	})
 	if err != nil {
 		port.Close()
 		return
@@ -153,37 +159,39 @@ func main() {
 
 	for {
 		time.Sleep(250 * time.Millisecond)
-		g.GpsSumData.Print()
-		// sats := g.GetSattelites()
-		// log.Printf("Sats: %d", len(sats))
-		/*
-			for _, item := range sats {
-				item.Print()
-			}*/
-	}
-	/*
-		notify := make(chan any, 20)
-		go g.Sart(notify)
-		for val := range notify {
-			// fmt.Printf("Received: %T\n", val)
-			switch data := val.(type) {
-			case *gps.GGA:
-				data.Print()
-			case *gps.RMC:
-				data.Print()
-			case *gps.GLL:
-				data.Print()
-			case *gps.GSA:
-				data.Print()
-			case *gps.VTG:
-				data.Print()
-			case *gps.GSV:
-				data.Print()
-			case *gps.TXT:
-				data.Print()
-			case *gps.GST:
-				data.Print()
-			}
+		if Data.Gps.GpsSumData.IsReady.Load() {
+			g.GpsSumData.Print()
+			// sats := g.GetSattelites()
+			// log.Printf("Sats: %d", len(sats))
+			/*
+				for _, item := range sats {
+					item.Print()
+				}*/
 		}
-	*/
+		/*
+			notify := make(chan any, 20)
+			go g.Sart(notify)
+			for val := range notify {
+				// fmt.Printf("Received: %T\n", val)
+				switch data := val.(type) {
+				case *gps.GGA:
+					data.Print()
+				case *gps.RMC:
+					data.Print()
+				case *gps.GLL:
+					data.Print()
+				case *gps.GSA:
+					data.Print()
+				case *gps.VTG:
+					data.Print()
+				case *gps.GSV:
+					data.Print()
+				case *gps.TXT:
+					data.Print()
+				case *gps.GST:
+					data.Print()
+				}
+			}
+		*/
+	}
 }

@@ -805,6 +805,7 @@ type GpsData struct {
 	DiffAge       atomic.Uint32 // float32 // Alter der Korrekturdaten
 	DiffStationId atomic.Uint32 // int
 	Messages      atomic.Value  // []string
+	IsReady       atomic.Bool   // bool
 }
 
 func (gps *GpsData) Print() {
@@ -867,10 +868,11 @@ func (gps *GpsData) init() {
 }
 
 type Gps struct {
-	Messages []any
-	reader   io.Reader
-	writer   io.Writer
-	notify   chan<- any
+	Messages      []any
+	reader        io.Reader
+	writer        io.Writer
+	flushCallBack func()
+	notify        chan<- any
 
 	satMap      map[satKey]SatInfo
 	satInfoLock sync.RWMutex
@@ -882,12 +884,13 @@ type Gps struct {
 	ubxVersion *UBXVer
 }
 
-func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
+func NewGps(reader io.Reader, writer io.Writer, flushCallBack func()) (*Gps, error) {
 	gps := &Gps{
-		Messages: make([]any, 0, 100),
-		reader:   reader,
-		writer:   writer,
-		satMap:   make(map[satKey]SatInfo, 20),
+		Messages:      make([]any, 0, 100),
+		reader:        reader,
+		writer:        writer,
+		flushCallBack: flushCallBack,
+		satMap:        make(map[satKey]SatInfo, 20),
 	}
 	gps.GpsSumData.init()
 	return gps, nil
@@ -1690,26 +1693,74 @@ func (gps *Gps) sendUBXCfg() {
 func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 	gps.notify = notify
 	reader := bufio.NewReader(gps.reader)
-	if isUbx {
-		gps.SendUBXVerRequest()
-	}
-
 	go gps.doSatMapCleanup()
 
-	for {
-		b, err := reader.ReadByte()
+	first := true
+	if gps.flushCallBack != nil {
+		gps.flushCallBack()
+	}
+	reader.Reset(gps.reader)
+
+begin:
+	if isUbx {
+		err := gps.SendUBXVerRequest()
 		if err != nil {
+			log.Printf("Send UBX version request failed %s", err)
+			gps.SendNotify(err)
 			return
+		} else {
+			log.Printf("UBX version request done")
 		}
+	}
+
+	ubxStart := false
+	var b byte
+	var err error
+	if isUbx {
+		count := 0
+		for {
+			b, err = reader.ReadByte()
+			if err != nil {
+				log.Printf("Read failed %s", err)
+				gps.SendNotify(err)
+				return
+			}
+			if b == 0xB5 {
+				ubxStart = true
+				break
+			}
+			count++
+			if count > 8192 { // manchmal gibt es keine Antwort von ublox
+				goto begin
+			}
+		}
+	}
+	for {
+		if !ubxStart {
+			b, err = reader.ReadByte()
+			if err != nil {
+				log.Printf("Read failed %s", err)
+				gps.SendNotify(err)
+				return
+			}
+		}
+		ubxStart = false
 		switch b {
 		case '$':
 			line, err := reader.ReadString('\n')
 			if err != nil {
+				log.Printf("ReadString failed %s", err)
+				gps.SendNotify(err)
 				return
 			}
 			if isUbx && gps.ubxVersion != nil {
 				line = "$" + line
 				gps.parseNmea(line)
+				if first {
+					first = false
+					gps.GpsSumData.IsReady.Store(true)
+					// gps.SendUBXVerRequest()
+				}
 			}
 
 		// UBX stuff
@@ -1717,6 +1768,8 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 			// UBX: zweites Synchronisationsbyte prüfen
 			b2, err := reader.ReadByte()
 			if err != nil {
+				log.Printf("Read failed %s", err)
+				gps.SendNotify(err)
 				return
 			}
 
@@ -1725,21 +1778,29 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 				// und Prüfsumme prüfen
 				classId, err := reader.ReadByte()
 				if err != nil {
+					log.Printf("Read failed %s", err)
+					gps.SendNotify(err)
 					return
 				}
 				messageId, err := reader.ReadByte()
 				if err != nil {
+					log.Printf("Read failed %s", err)
+					gps.SendNotify(err)
 					return
 				}
 				bufLength := make([]byte, 2)
 				_, err = io.ReadFull(reader, bufLength)
 				if err != nil {
+					log.Printf("ReadFull failed %s", err)
+					gps.SendNotify(err)
 					return
 				}
 				l := binary.LittleEndian.Uint16(bufLength)
 				bufPayload := make([]byte, l)
 				_, err = io.ReadFull(reader, bufPayload)
 				if err != nil {
+					log.Printf("ReadFull failed %s", err)
+					gps.SendNotify(err)
 					return
 				}
 				// log.Printf("Class=%02X Message=%02X Length=%d Payload=% X", classId, messageId, l, bufPayload)
@@ -1747,6 +1808,8 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 				bufCrc := make([]byte, 2)
 				_, err = io.ReadFull(reader, bufCrc)
 				if err != nil {
+					log.Printf("ReadFull failed %s", err)
+					gps.SendNotify(err)
 					return
 				}
 				data := make([]byte, 0, 4+len(bufPayload))
@@ -1762,7 +1825,9 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 						if err == nil {
 							gps.ubxVersion = ver
 							gps.ubxVersion.Print()
-							gps.sendUBXCfg()
+							if first {
+								gps.sendUBXCfg()
+							}
 						}
 					}
 				}

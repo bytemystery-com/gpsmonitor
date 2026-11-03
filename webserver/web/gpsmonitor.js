@@ -147,8 +147,8 @@ function doPeriodic()
 				}
 				// GPS data
 				setValue("summary_version", "summary_tr_version", json.status.version, null);
-				const gps = json.data.gps
-				if (gps !== undefined) {
+				if (json.data?.gps !== undefined) {
+					const gps = json.data.gps
 					setValue("summary_latitude", "summary_tr_latitude", gps.la, (val) => val.toFixed(6));
 					setValue("summary_longitude", "summary_tr_longitude", gps.lo, (val) => val.toFixed(6));
 					setValue("summary_height", "summary_tr_height", gps.al, (val) => val.toFixed(1) + " m");
@@ -240,7 +240,8 @@ function doPeriodic()
 						return formattedString
 					});
 				}
-				doUpdateGpsViews(json.data.sats)
+				if (json.data?.sats)
+					doUpdateGpsViews(json.data.sats)
 			} // response != NULL
 
 			data_request = null;

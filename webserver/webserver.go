@@ -170,9 +170,9 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	type dataJson struct {
-		Config config     `json:"config"`
-		Status status     `json:"status"`
-		Data   WebDataAll `json:"data"`
+		Config config      `json:"config"`
+		Status status      `json:"status"`
+		Data   *WebDataAll `json:"data"`
 	}
 
 	raspiRpm, _ := raspi.GetFanRPM()
@@ -212,7 +212,7 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 				WifiTx:       raspiWifiTx,
 			},
 		},
-		Data: *data,
+		Data: data,
 	}
 	b, err := json.Marshal(dj)
 	if err != nil {
