@@ -26,6 +26,17 @@ class GpsView {
 
 		this.paintBackground()
 		this.coordinateSystem()
+
+		document.querySelectorAll('.gps_network_toggle').forEach(checkbox => {
+			checkbox.addEventListener('change', (event) => {
+				const netWorkId = event.target.getAttribute('data-network');
+				const g = document.getElementById(`svg_${this.prefix}_network_${netWorkId}`);
+				if (g) {
+					// 2. Setze die Sichtbarkeit je nachdem, ob der Haken drin ist oder nicht
+					g.style.visibility = event.target.checked ? "visible" : "hidden";
+				}
+			});
+		});
 	}
 
 	paintBackground() {
@@ -515,6 +526,31 @@ function saveSvgFile() {
     // 6. Aufräumen: Link löschen und Speicher freigeben
     document.body.removeChild(downloadLink);
     URL.revokeObjectURL(url);
+
+
+
+
+
+
+
+
+	function holeStandardBlau() {
+  // 1. Ein temporäres, unsichtbares Element erstellen
+  const tempDiv = document.createElement('div');
+  
+  // 2. Ihm die offizielle System-Akzentfarbe als Hintergrund geben
+  tempDiv.style.backgroundColor = 'AccentColor'; 
+  tempDiv.style.display = 'none';
+  document.body.appendChild(tempDiv);
+
+  // 3. Jetzt MUSS der Browser das "System-Blau" in echtes RGB umrechnen!
+  const echerRgbWert = window.getComputedStyle(tempDiv).backgroundColor;
+
+  // 4. Das Hilfselement wieder sauber löschen
+  tempDiv.remove();
+
+  return echerRgbWert; 
+}
 }
 
 */

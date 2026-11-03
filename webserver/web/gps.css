@@ -34,18 +34,17 @@
 .gps_view
 {
 	display: block;
-  	width: calc(2 * 22em + 10px);
+  	width: calc(2 * 22em - 9px);
     height: auto;
 	aspect-ratio: 1 / 1; 
 	padding: 10px 10px 24px 10px;
-	/* Sorgt dafür, dass das Padding den Kasten nicht vergrößert */
 	box-sizing: border-box;	
 	margin: 5px;
 }
 
-@media (max-width: 49.45em) {
+@media (max-width: 50.4em) {
     .gps_view {
-        width: calc(22em - 10px)
+        width: calc(22em - 30px)
     }
 }
 
@@ -99,4 +98,22 @@
     text-align: right;
     justify-self: end;
     width: 100%;
+}
+
+.sat_checkbox-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 15px; 
+    justify-content: center;
+    width: 100%;
+    margin: 0 auto;
+    padding: 5px 0;
+}
+
+.sat_checkbox-item {
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }

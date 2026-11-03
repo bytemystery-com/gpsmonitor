@@ -877,6 +877,9 @@ type Gps struct {
 
 	GpsSumData GpsData
 	Trace      bool
+
+	// UBX
+	ubxVersion *UBXVer
 }
 
 func NewGps(reader io.Reader, writer io.Writer) (*Gps, error) {
@@ -1576,6 +1579,79 @@ func (gps *Gps) SendUBXConfig(layer byte, key uint32, value uint32) error {
 	return err
 }
 
+func (gps *Gps) SendUBXVerRequest() error {
+	packet := []byte{
+		0xB5, 0x62, // Sync
+		0x0A, 0x04, // MON-VER
+		0x00, 0x00, // Payload-Länge
+	}
+	cka, ckb := gps.ubxChecksum(packet[2:])
+	packet = append(packet, cka, ckb)
+	_, err := gps.writer.Write(packet)
+	return err
+}
+
+type UBXModel int
+
+const (
+	UBX_UNKNOWN UBXModel = iota
+	UBX_M9
+	UBX_M10
+)
+
+type UBXVer struct {
+	SwVersion  string
+	HwVersion  string
+	Extensions []string
+	Model      string
+	UBXModel   UBXModel
+}
+
+func (v *UBXVer) Print() {
+	log.Printf("UBX version:")
+	log.Printf("  Model: %v", v.Model)
+	log.Printf("  UBXModel: %d", v.UBXModel)
+	log.Printf("  Extensions: %v", v.Extensions)
+	log.Printf("  SW version: %s", v.SwVersion)
+	log.Printf("  HW version: %s", v.HwVersion)
+	log.Printf("  Extensions: %v", v.Extensions)
+}
+
+func (gps *Gps) parseUBXVer(payLoad []byte) (*UBXVer, error) {
+	if len(payLoad) < 40 || (len(payLoad)-40)%30 != 0 {
+		return nil, fmt.Errorf("invalid MON-VER payload length: %d", len(payLoad))
+	}
+
+	mon := &UBXVer{
+		SwVersion: strings.TrimRight(string(payLoad[0:30]), "\x00"),
+		HwVersion: strings.TrimRight(string(payLoad[30:40]), "\x00"),
+	}
+
+	for i := 40; i+30 <= len(payLoad); i += 30 {
+		ext := strings.TrimRight(string(payLoad[i:i+30]), "\x00")
+		if ext != "" {
+			mon.Extensions = append(mon.Extensions, ext)
+		}
+	}
+
+	for _, ext := range mon.Extensions {
+		after, ok := strings.CutPrefix(ext, "MOD=")
+		if ok {
+			mon.Model = after
+			break
+		}
+	}
+	switch {
+	case strings.Contains(mon.Model, "M9"):
+		mon.UBXModel = UBX_M9
+	case strings.Contains(mon.Model, "M10"):
+		mon.UBXModel = UBX_M10
+	default:
+		mon.UBXModel = UBX_UNKNOWN
+	}
+	return mon, nil
+}
+
 func (gps *Gps) doSatMapCleanup() {
 	for {
 		time.Sleep(CLEAMUP_INTERVAL * time.Second)
@@ -1593,17 +1669,29 @@ func (gps *Gps) doSatMapCleanup() {
 	}
 }
 
+func (gps *Gps) sendUBXCfg() {
+	// gps.SendUBXConfig(0x01, 0x40520001, 115200)
+	gps.SendUBXConfig(0x01, 0x20930001, 41) // NMEA 4.11
+	gps.SendUBXConfig(0x01, 0x20930007, 1)  // Extended einschalten
+	gps.SendUBXConfig(0x01, 0x209100d4, 1)  // GST einschalten
+	gps.SendUBXConfig(0x01, 0x20910087, 7)  // TXT einschalten
+
+	switch gps.ubxVersion.UBXModel {
+	case UBX_M9:
+		// gps.SendUBXConfig(0x01, 0x209100b2, 1)  // GNS einschalten ???
+		gps.SendUBXConfig(0x01, 0x209100b7, 1) // VTG einschalten
+
+	case UBX_M10:
+		// gps.SendUBXConfig(0x01, 0x209100b6, 1) // GNS einschalten ???
+		gps.SendUBXConfig(0x01, 0x209100b1, 1) // VTG einschalten
+	}
+}
+
 func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 	gps.notify = notify
 	reader := bufio.NewReader(gps.reader)
 	if isUbx {
-		// gps.SendUBXConfig(0x01, 0x40520001, 115200)
-		gps.SendUBXConfig(0x01, 0x20930001, 41) // NMEA 4.11
-		gps.SendUBXConfig(0x01, 0x20930007, 1)  // Extended einschalten
-		gps.SendUBXConfig(0x01, 0x209100d4, 1)  // GST einschalten
-		gps.SendUBXConfig(0x01, 0x20910087, 1)  // TXT einschalten
-		// gps.SendUBXConfig(0x01, 0x209100b2, 1)  // GNS einschalten ???
-		gps.SendUBXConfig(0x01, 0x209100b7, 1) // VTG einschalten
+		gps.SendUBXVerRequest()
 	}
 
 	go gps.doSatMapCleanup()
@@ -1619,8 +1707,10 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 			if err != nil {
 				return
 			}
-			line = "$" + line
-			gps.parseNmea(line)
+			if isUbx && gps.ubxVersion != nil {
+				line = "$" + line
+				gps.parseNmea(line)
+			}
 
 		// UBX stuff
 		case 0xB5:
@@ -1652,7 +1742,7 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 				if err != nil {
 					return
 				}
-				log.Printf("Class=%02X Message=%02X Length=%d Payload=% X", classId, messageId, l, bufPayload)
+				// log.Printf("Class=%02X Message=%02X Length=%d Payload=% X", classId, messageId, l, bufPayload)
 				// log.Printf("Payload %v", bufPayload)
 				bufCrc := make([]byte, 2)
 				_, err = io.ReadFull(reader, bufCrc)
@@ -1666,6 +1756,15 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 				ckA, ckB := gps.ubxChecksum(data)
 				if bufCrc[0] != ckA || bufCrc[1] != ckB {
 					log.Printf("CRC Fehler")
+				} else {
+					if classId == 0x0A && messageId == 0x04 {
+						ver, err := gps.parseUBXVer(bufPayload)
+						if err == nil {
+							gps.ubxVersion = ver
+							gps.ubxVersion.Print()
+							gps.sendUBXCfg()
+						}
+					}
 				}
 			}
 		}

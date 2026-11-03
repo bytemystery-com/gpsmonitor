@@ -1,3 +1,12 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+	scroll-snap-type: y proximity;
+	scroll-behavior: smooth;
+}
+
 body
 {
 	background-color: rgb(230, 230, 230);
@@ -85,7 +94,7 @@ body
 .status_key
 {
 	font-weight: bold;
-	width: 55%;
+	width: 60%;
 }
 
 .status_value
@@ -94,28 +103,27 @@ body
 	padding-top: 5px;
 	padding-bottom: 5px;
 	padding-right: 0px;
-	width: 45%;
+	width: 40%;
     white-space: nowrap;
 }
 /*---*/
 
 /* SVG */
 .svg_status {
-    float: left;
-  	width: auto;
-    height: auto;
-	padding: 0 0 0 0;
-	margin: 0;
-	aspect-ratio: 1 / 1; 
-    vertical-align: top;
+ float: left;
+  width: auto;
+  height: auto;
+  padding: 10px;
+  margin: 0;
+  scroll-snap-align: start;
+  scroll-margin-top: 10px;
 }
 
 .svg_tablecell {
-    display: table-cell;
-    width: 100%;
+	display: block; /* Von table-cell auf block wechseln */
+	width: 100%;
 	padding: 0;
 	margin: 0;
-    vertical-align: top;
 }
 /*---*/
 
