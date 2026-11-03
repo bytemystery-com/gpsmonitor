@@ -27,6 +27,14 @@ function doLoadGpsViews()
 	});
 }
 
+function doUpdateGpsViews(sats)
+{
+	gpsViews.forEach(function(view)
+	{
+		view.doUpdate(sats);
+	});
+}
+
 function doRestart()
 {
 	var restart_request = new XMLHttpRequest();
@@ -145,43 +153,65 @@ function doPeriodic()
 					setValue("summary_longitude", "summary_tr_longitude", gps.lo, (val) => val.toFixed(6));
 					setValue("summary_height", "summary_tr_height", gps.al, (val) => val.toFixed(1) + " m");
 					setValue("summary_speed", "summary_tr_speed", gps.sp, (val) => val.toFixed(2) + " m/s");
-					setValue("summary_course", "summary_tr_course", gps.co, (val) => val.toFixed(2) + " °");
-					setValue("summary_magvar", "summary_tr_magbar", gps.mv, (val) => val.toFixed(2) + " °");
+					setValue("summary_course", "summary_tr_course", gps.co, (val) => {
+						let v= ""
+						 v = val.toFixed(2) + " °";
+						 if (gps.mv !== undefined) {
+							v += " / " + gps.mv.toFixed(2) + " °"
+						 }
+					})
 					setValue("summary_mode", "summary_tr_mode", gps.mo, (val) => {
+						let mode = ""
 						switch (val) {
 							case 0:
-								return "No fix"
+								mode = "No fix"
+								break
 							case 1:
-								return "2D"
+								mode = "2D"
+								break
 							case 3:
-								return "3D"
+								mode = "3D"
+								break
 							default :
-								return "!!!"
-
-						}});
-					setValue("summary_quality", "summary_tr_quality", gps.qu, (val) => {
-						switch (val) {
-							case 0:
-								return "No fix"
-							case 1:
-								return "Normal fix"
-							case 2:
-								return "Diff Fix"
-							case 3:
-								return "PPS Fix"
-							case 4:
-								return "RTK Fix"
-							case 5:
-								return "RTK Float"
-							case 5:
-								return "Estimated"
-							case 6:
-								return "Manual"
-							case 7:
-								return "Simulation"
-							default :
-								return "!!!"
+								mode = "!!!"
+								break
 						}
+						if (gps.qu !== undefined){
+							mode += " / "
+							switch (gps.qu) {
+								case 0:
+									mode += "No fix"
+									break
+								case 1:
+									mode += "Normal fix"
+									break
+								case 2:
+									mode += "Diff Fix"
+									break
+								case 3:
+									mode += "PPS Fix"
+									break
+								case 4:
+									mode += "RTK Fix"
+									break
+								case 5:
+									mode += "RTK Float"
+									break
+								case 6:
+									mode += "Estimated"
+									break
+								case 7:
+									mode += "Manual"
+									break
+								case 8:
+									mode += "Simulation"
+									break
+								default :
+									mode += "!!!"
+									break
+							}
+						}
+						return mode
 					});
 					setValue("summary_nsats", "summary_tr_nsats", gps.su, (val) => val + " / " + (gps.st != null ? gps.st : "---"));
 					setValue("summary_stdlatitude", "summary_tr_stdlatitude", gps.stla, (val) => val.toFixed(2) + " m");
@@ -210,7 +240,7 @@ function doPeriodic()
 						return formattedString
 					});
 				}
-
+				doUpdateGpsViews(json.data.sats)
 			} // response != NULL
 
 			data_request = null;

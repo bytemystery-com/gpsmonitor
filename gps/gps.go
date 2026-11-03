@@ -29,6 +29,7 @@ package gps
 import (
 	"bufio"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -125,9 +126,9 @@ const (
 
 	SBAS_L1CA
 
-	GALILIEO_E1
-	GALILIEO_E5A
-	GALILIEO_E5B
+	GALILEO_E1
+	GALILEO_E5A
+	GALILEO_E5B
 
 	BEIDOU_B1I
 	BEIDOU_B2I
@@ -162,11 +163,11 @@ func (signalId SignalId) String() string {
 		return "GPS L5 Q"
 	case SBAS_L1CA:
 		return "SBAS L1 C/A"
-	case GALILIEO_E1:
+	case GALILEO_E1:
 		return "Galileo E1"
-	case GALILIEO_E5A:
+	case GALILEO_E5A:
 		return "Galileo E5 a"
-	case GALILIEO_E5B:
+	case GALILEO_E5B:
 		return "Galileo E5 b"
 	case BEIDOU_B1I:
 		return "BeiDou B1 I"
@@ -195,6 +196,121 @@ func (signalId SignalId) String() string {
 	default:
 		return "???"
 	}
+}
+
+// MarshalText: Bestimmt, wie die SignalId als JSON-Key geschrieben wird
+func (signalId SignalId) MarshalText() (text []byte, err error) {
+	switch signalId {
+	case SIGNALID_UNKNOWN:
+		return []byte("UNKNOWN"), nil
+	case GPS_L1CA:
+		return []byte("GPS_L1CA"), nil
+	case GPS_L2CL:
+		return []byte("GPS_L2CL"), nil
+	case GPS_L2CM:
+		return []byte("GPS_L2CM"), nil
+	case GPS_L5I:
+		return []byte("GPS_L5I"), nil
+	case GPS_L5Q:
+		return []byte("GPS_L5Q"), nil
+	case SBAS_L1CA:
+		return []byte("SBAS_L1CA"), nil
+	case GALILEO_E1:
+		return []byte("GALILEO_E1"), nil
+	case GALILEO_E5A:
+		return []byte("GALILEO_E5A"), nil
+	case GALILEO_E5B:
+		return []byte("GALILEO_E5B"), nil
+	case BEIDOU_B1I:
+		return []byte("BEIDOU_B1I"), nil
+	case BEIDOU_B2I:
+		return []byte("BEIDOU_B2I"), nil
+	case BEIDOU_B2A:
+		return []byte("BEIDOU_B2A"), nil
+	case QZSS_L1CA:
+		return []byte("QZSS_L1CA"), nil
+	case QZSS_L1S:
+		return []byte("QZSS_L1S"), nil
+	case QZSS_L2CM:
+		return []byte("QZSS_L2CM"), nil
+	case QZSS_L2CL:
+		return []byte("QZSS_L2CL"), nil
+	case QZSS_L5I:
+		return []byte("QZSS_L5I"), nil
+	case QZSS_L5Q:
+		return []byte("QZSS_L5Q"), nil
+	case GLONASS_L1OF:
+		return []byte("GLONASS_L1OF"), nil
+	case GLONASS_L2OF:
+		return []byte("GLONASS_L2OF"), nil
+	case NAVIC_L5A:
+		return []byte("NAVIC_L5A"), nil
+	default:
+		return fmt.Appendf(nil, "SIGNALID_%d", signalId), nil
+	}
+}
+
+// UnmarshalText: Erlaubt es Go, diese JSON-Keys wieder korrekt einzulesen
+func (signalId *SignalId) UnmarshalText(text []byte) error {
+	str := string(text)
+	switch str {
+	case "UNKNOWN":
+		*signalId = SIGNALID_UNKNOWN
+	case "GPS_L1CA":
+		*signalId = GPS_L1CA
+	case "GPS_L2CL":
+		*signalId = GPS_L2CL
+	case "GPS_L2CM":
+		*signalId = GPS_L2CM
+	case "GPS_L5I":
+		*signalId = GPS_L5I
+	case "GPS_L5Q":
+		*signalId = GPS_L5Q
+	case "SBAS_L1CA":
+		*signalId = SBAS_L1CA
+	case "GALILEO_E1":
+		*signalId = GALILEO_E1
+	case "GALILEO_E5A":
+		*signalId = GALILEO_E5A
+	case "GALILEO_E5B":
+		*signalId = GALILEO_E5B
+	case "BEIDOU_B1I":
+		*signalId = BEIDOU_B1I
+	case "BEIDOU_B2I":
+		*signalId = BEIDOU_B2I
+	case "BEIDOU_B2A":
+		*signalId = BEIDOU_B2A
+	case "QZSS_L1CA":
+		*signalId = QZSS_L1CA
+	case "QZSS_L1S":
+		*signalId = QZSS_L1S
+	case "QZSS_L2CM":
+		*signalId = QZSS_L2CM
+	case "QZSS_L2CL":
+		*signalId = QZSS_L2CL
+	case "QZSS_L5I":
+		*signalId = QZSS_L5I
+	case "QZSS_L5Q":
+		*signalId = QZSS_L5Q
+	case "GLONASS_L1OF":
+		*signalId = GLONASS_L1OF
+	case "GLONASS_L2OF":
+		*signalId = GLONASS_L2OF
+	case "NAVIC_L5A":
+		*signalId = NAVIC_L5A
+	default:
+		// Versuchen, den nummerischen Fallback ("SIGNALID_X") zu parsen
+		var id int
+		n, err := fmt.Sscanf(str, "SIGNALID_%d", &id)
+		if err != nil {
+			return err
+		}
+		if n != 1 {
+			return fmt.Errorf("unbekannter JSON-SignalId-Key: %s", str)
+		}
+		*signalId = SignalId(id)
+	}
+	return nil
 }
 
 func (n NavMode) String() string {
@@ -249,7 +365,7 @@ func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
 		case NetworkSBAS:
 			return SBAS_L1CA
 		case NetworkGalileo:
-			return GALILIEO_E5A
+			return GALILEO_E5A
 		case NetworkBeiDou:
 			return BEIDOU_B1I
 		case NetworkQZSS:
@@ -262,7 +378,7 @@ func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
 	case 2:
 		switch gpsNetwork {
 		case NetworkGalileo:
-			return GALILIEO_E5B
+			return GALILEO_E5B
 		}
 	case 3:
 		switch gpsNetwork {
@@ -295,7 +411,7 @@ func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
 		case NetworkGPS:
 			return GPS_L5I
 		case NetworkGalileo:
-			return GALILIEO_E1
+			return GALILEO_E1
 		case NetworkQZSS:
 			return QZSS_L5I
 		}
@@ -574,12 +690,12 @@ const (
 	NetworkUnknown GPSNetwork = iota
 	NetworkGPS
 	NetworkGLONASS
-	NetworkGalileo
 	NetworkBeiDou
+	NetworkGalileo
 	NetworkQZSS
+	NetworkNaviC
 	NetworkSBAS
 	NetworkIMES
-	NetworkNaviC
 )
 
 func (n GPSNetwork) String() string {
@@ -596,12 +712,12 @@ func (n GPSNetwork) String() string {
 		return "BeiDou"
 	case NetworkQZSS:
 		return "QZSS"
+	case NetworkNaviC:
+		return "NaviC"
 	case NetworkSBAS:
 		return "SBAS"
 	case NetworkIMES:
 		return "IMES"
-	case NetworkNaviC:
-		return "NaviC"
 	default:
 		return "???"
 	}
@@ -612,15 +728,43 @@ type satKey struct {
 	id      int
 }
 
+type StrengthValue struct {
+	Val float32
+}
+
+func (s StrengthValue) MarshalJSON() (text []byte, err error) {
+	if math.IsNaN(float64(s.Val)) {
+		return []byte("null"), nil
+	} else {
+		// Call marshaller for f
+		return json.Marshal(s.Val)
+	}
+}
+
+func (s *StrengthValue) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		s.Val = float32(math.NaN())
+		return nil
+	}
+
+	var f float32
+	err := json.Unmarshal(data, &f)
+	if err != nil {
+		return err
+	}
+	s.Val = f
+	return nil
+}
+
 type SatInfo struct {
-	Network        GPSNetwork
-	Id             int
-	Elev           int
-	Azimuth        int
-	Strength       map[SignalId]float32 // SignalID as Key
-	Used           bool
-	LastUpdate     time.Time
-	LastUsedUpdate time.Time
+	Network        GPSNetwork                 `json:"nw"`
+	Id             int                        `json:"id"`
+	Elev           int                        `json:"el"`
+	Azimuth        int                        `json:"az"`
+	Strength       map[SignalId]StrengthValue `json:"st"` // SignalID as Key
+	Used           bool                       `json:"us"`
+	LastUpdate     time.Time                  `json:"-"`
+	LastUsedUpdate time.Time                  `json:"-"`
 }
 
 func (s *SatInfo) Print() {
@@ -632,7 +776,7 @@ func (s *SatInfo) Print() {
 	log.Printf("  Used      : %v", s.Used)
 	log.Printf("  Strength  :")
 	for key, val := range s.Strength {
-		log.Printf("    %-15s  : %.2f", key.String(), val)
+		log.Printf("    %-15s  : %.2f", key.String(), val.Val)
 	}
 }
 
@@ -1278,7 +1422,7 @@ func (gps *Gps) parseNmea(line string) {
 					info = SatInfo{
 						Id:       item.Id,
 						Network:  key.network,
-						Strength: make(map[SignalId]float32, 5),
+						Strength: make(map[SignalId]StrengthValue, 5),
 						Azimuth:  -1,
 						Elev:     -1,
 					}
@@ -1322,10 +1466,10 @@ func (gps *Gps) parseNmea(line string) {
 					info = SatInfo{
 						Id:       item.Id,
 						Network:  key.network,
-						Strength: make(map[SignalId]float32, 5),
+						Strength: make(map[SignalId]StrengthValue, 5),
 					}
 				}
-				info.Strength[GetSignalId(gsv.SignalId, key.network)] = item.Strength
+				info.Strength[GetSignalId(gsv.SignalId, key.network)] = StrengthValue{Val: item.Strength}
 				info.Elev = item.Elev
 				info.Azimuth = item.Azimuth
 				info.LastUpdate = time.Now()

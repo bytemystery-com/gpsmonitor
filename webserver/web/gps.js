@@ -14,6 +14,16 @@ class GpsView {
 		svg.setAttribute("viewBox", "-1.15 -1.15 2.3 2.3");
 		let back = document.getElementById(this.prefix + "back");
 		removeAllChilds(back);
+		this.satColors = new Map();
+		for (let i = 0; i <= 6; i++) {
+			this.satColors.set(i, getCustomCssProperty(`--gps-sat_network_${i}_color`))
+		}
+		this.tooltip = document.getElementById("sat-tooltip");
+		this.satMinStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_min_radius`))
+		this.satMaxStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_max_radius`))
+		this.satUsedColor = getCustomCssProperty(`--gps-sat_used_color`)
+		this.satUsedStrokeWidth = getCustomCssProperty(`--gps-sat_used_stroke_width`)
+
 		this.paintBackground()
 		this.coordinateSystem()
 	}
@@ -173,6 +183,232 @@ class GpsView {
 		lines.append(fragment)
 	}
 
+	doUpdate(sats) {
+		if (sats === undefined || sats == null) {
+			return
+		}
+		let data = document.getElementById(this.prefix + "data");
+		removeAllChilds(data);
+		const networks = new Map();
+		const fragment = document.createDocumentFragment();
+		const minStrengthRange = 10
+		const maxStrengthRange = 50
+		let g
+		for (let i = 0; i <= 6; i++) {
+		    g = document.createElementNS(this.svgNameSpace, "g");
+			g.id = `svg_${this.prefix}_network_${i}`;
+			networks.set(i, g)
+			fragment.prepend(g)
+		}
+
+		for (const sat of sats) {
+			let networkId = sat.nw
+			let networkName = this.getNetworkName(networkId)
+			if (networkId > 6) {
+				networkId = 0
+			}
+			if (networks.has(networkId)) {
+				g = networks.get(networkId)
+			} else {
+			    g = document.createElementNS(this.svgNameSpace, "g");
+				g.id = "svg_" + prefix + "_network_" + networkId;
+				networks.set(networkId, g);
+				fragment.append(g)
+			}
+			// add circle data to g
+
+			let r = 1.0 - 1.0 * sat.el/90.0
+			let x = r*Math.sin((Math.PI/180.0)*sat.az)
+			let y = -r*Math.cos((Math.PI/180.0)*sat.az)
+			
+			const circle = document.createElementNS(this.svgNameSpace, "circle");
+			circle.setAttribute("cx", x);
+			circle.setAttribute("cy", y);
+			circle.setAttribute("fill", this.satColors.get(networkId));
+			let maxStrength = Number(0)
+			r = 0
+			for (const strength of Object.values(sat.st)) {
+				if (strength != null) {
+					const n = Number(strength)
+					if (maxStrength == 0 && n > maxStrength) { 
+						maxStrength = n
+					}
+				}
+			}
+			if (maxStrength > maxStrengthRange) {
+				maxStrength = maxStrengthRange
+			}
+			if (maxStrength < minStrengthRange) {
+				maxStrength = minStrengthRange
+			}
+			const f = (maxStrength - minStrengthRange)/(maxStrengthRange - minStrengthRange);
+			r = this.satMinStrengthRadius + f *(this.satMaxStrengthRadius - this.satMinStrengthRadius)
+			circle.setAttribute("r", r);
+			if (sat.us) {
+				circle.setAttribute("stroke", this.satUsedColor);
+				circle.setAttribute("stroke-width", this.satUsedStrokeWidth);
+				circle.setAttribute("vector-effect", "non-scaling-stroke");
+			} else {
+				circle.setAttribute("stroke", "none");
+			}
+
+			// Tooltip - Logik
+			const buildTooltipContent = () => {
+				let tt = `<div class="sat_tooltip_grid">` +
+				`<span class="sat_tooltip_grid_key">Network:</span><span>${networkName}</span>` + 
+				`<span class="sat_tooltip_grid_key">Id:</span><span>${sat.id}</span>` +
+				`<span class="sat_tooltip_grid_key">Used:</span><span>${sat.us ? "yes" : "no"}</span>`;
+
+				let first = true;
+				for (const [signal, strength] of Object.entries(sat.st)) {
+					if (strength != null) {
+						if (first) {
+							first = false;
+							// 'grid-column: 1 / -1' bricht in die nächste Zeile um.
+							// 'padding-left: 16px' sorgt für die gewünschte Einrückung nach rechts.
+							tt +=`<span class="sat_tooltip_grid_key">Strength:</span><span></span>` + 
+							`<span class="sat_tooltip_grid_inner">`; 
+						}
+						tt += `<span class="sat_tooltip_grid_key_inner">${this.getSignalName(signal)}:</span>` +
+							`<span>${strength} dB</span>`;
+					}
+				}
+				if (!first) {
+					tt += `</span>`;
+				} else {
+					tt +=`<span class="sat_tooltip_grid_key">Strength:</span><span>---</span>`
+				}
+				tt +=`<span class="sat_tooltip_grid_key">Azimuth:</span><span>${sat.az} °</span>` +
+				`<span class="sat_tooltip_grid_key">Elevation:</span><span>${sat.el} °</span>` +
+				`</div>`;
+				
+				this.tooltip.innerHTML = tt;
+			};
+
+			// Wir speichern den Zustand, ob der Tooltip für diesen Kreis offen ist, direkt im Element
+			circle.tooltipOpen = false;
+
+			circle.addEventListener("pointerenter", (event) => {
+				if (event.pointerType === "touch") return; 
+				buildTooltipContent();
+				this.tooltip.style.display = "block";
+			});
+
+			circle.addEventListener("pointermove", (event) => {
+				if (event.pointerType === "touch") return; 
+				this.tooltip.style.left = (event.clientX + 15) + "px";
+				this.tooltip.style.top = (event.clientY + 15) + "px";
+			});
+
+			circle.addEventListener("pointerleave", (event) => {
+				if (event.pointerType === "touch") return; 
+				this.tooltip.style.display = "none";
+			});
+
+			circle.addEventListener("click", (event) => {
+				event.stopPropagation(); // Wichtig: Verhindert das Weiterleiten an das Dokument
+				
+				if (event.pointerType === "touch") {
+					if (circle.tooltipOpen) {
+						this.tooltip.style.display = "none";
+						circle.tooltipOpen = false;
+					} else {
+						buildTooltipContent();
+						this.tooltip.style.left = (event.clientX - 40) + "px";
+						this.tooltip.style.top = (event.clientY - 70) + "px";
+						this.tooltip.style.display = "block";
+						circle.tooltipOpen = true;
+					}
+				}
+			});
+
+			document.addEventListener("click", () => {
+				this.tooltip.style.display = "none";
+				circle.tooltipOpen = false;
+			});
+
+
+			g.append(circle)
+		}
+		data.append(fragment)
+	}
+
+	getSignalName(signalId) {
+		switch (signalId) {
+		case "UNKNOWN":
+			return "---"
+		case "GPS_L1CA":
+			return "GPS L1 C/A"
+		case "GPS_L2CL":
+			return "GPS L2 CL"
+		case "GPS_L2CM":
+			return "GPS L2 CM"
+		case "GPS_L5I":
+			return "GPS L5 I"
+		case "GPS_L5Q":
+			return "GPS L5 Q"
+		case "SBAS_L1CA":
+			return "SBAS L1 C/A"
+		case "GALILEO_E1":
+			return "Galileo E1"
+		case "GALILEO_E5A":
+			return "Galileo E5 a"
+		case "GALILEO_E5B":
+			return "Galileo E5 b"
+		case "BEIDOU_B1I":
+			return "BeiDou B1 I"
+		case "BEIDOU_B2I":
+			return "BeiDou B2 I"
+		case "BEIDOU_B2A": 
+			return "BeiDou B2 A"
+		case "QZSS_L1CA":
+			return "QZSS L1 C/A"
+		case "QZSS_L1S":
+			return "QZSS L1 S"
+		case "QZSS_L2CM":
+			return "QZSS L2 CM"
+		case "QZSS_L2CL":
+			return "QZSS L2 CL"
+		case "QZSS_L5I":
+			return "QZSS L5 I"
+		case "QZSS_L5Q":
+			return "QZSS L5 Q"
+		case "GLONASS_L1OF":
+			return "GLONASS L1 OF"
+		case "GLONASS_L2OF":
+			return "GLONASS L2 OF"
+		case "NAVIC_L5A":
+			return "NaviC L5A"
+		default:
+			return "???"
+		}
+	}
+
+	getNetworkName(networkId) {
+		switch (networkId) {
+		case 0:
+			return "Unknown"
+		case 1:
+			return "GPS"
+		case 2:
+			return "GLONASS"
+		case 3:
+			return "Galileo"
+		case 4:
+			return "BeiDou"
+		case 5:
+			return "QZSS"
+		case 6:
+			return "SBAS"
+		case 7:
+			return "IMES"
+		case 8:
+			return "NaviC"
+		default:
+			return "???"
+		}
+	}
+
 	getTextSize(root, text, fontSize, fontFamily, fontWeight) {
 		const label = document.createElementNS(this.svgNameSpace, "text");
 		label.setAttribute("font-size", fontSize);
@@ -215,71 +451,70 @@ function removeQuotes(val) {
 }
 
 /*
-const satCircle = document.createElementNS(this.svgNameSpace, "circle");
-satCircle.setAttribute("cx", x);
-satCircle.setAttribute("cy", y);
-satCircle.setAttribute("r", 5);
-
-// Nativen Tooltip erstellen
-const title = document.createElementNS(this.svgNameSpace, "title");
-title.textContent = "GPS Satellit PRN 24\nSignal: Stark\nElevation: 45°";
-
-// Wichtig: Den Title INS INNERE des Kreises hängen!
-satCircle.appendChild(title); 
-layer.appendChild(satCircle);
+<!-- HTML Schalter -->
+<input type="checkbox" class="net-toggle" data-network="net_gps" checked> GPS
+<input type="checkbox" class="net-toggle" data-network="net_glonass" checked> GLONASS
 
 
------------------------------------------------
-<div id="sat-tooltip" style="
-    position: fixed; 
-    display: none; 
-    background: rgba(0,0,0,0.85); 
-    color: white; 
-    padding: 8px 12px; 
-    border-radius: 4px; 
-    font-family: sans-serif; 
-    font-size: 12px; 
-    pointer-events: none; // Verhindert, dass der Mauszeiger auf dem Tooltip flackert
-    z-index: 9999;">
-</div>
-
-// Einmalig im Constructor oder deiner Init-Funktion holen:
-this.tooltipEl = document.getElementById("sat-tooltip");
-
-// In deiner Funktion, die den Satelliten erstellt:
-addSatellite(satData) {
-    const satCircle = document.createElementNS(this.svgNameSpace, "circle");
-    satCircle.setAttribute("cx", satData.x);
-    satCircle.setAttribute("cy", satData.y);
-    satCircle.setAttribute("r", 6);
-    satCircle.setAttribute("fill", "#00FF00");
-
-    // 🚀 MAUS FÄHRT DRÜBER
-    satCircle.addEventListener("pointerenter", (event) => {
-        // Inhalt befüllen (Hier geht sogar HTML!)
-        this.tooltipEl.innerHTML = `
-            <strong>${satData.network.toUpperCase()} - PRN ${satData.prn}</strong><br>
-            Elevation: ${satData.elevation}°<br>
-            Azimut: ${satData.azimuth}°
-        `;
+// Morgen einfach in deine Init-Funktion packen:
+document.querySelectorAll('.net-toggle').forEach(checkbox => {
+    checkbox.addEventListener('change', (event) => {
+        // 1. Hole den Namen der SVG-Gruppe aus der Checkbox
+        const targetGroupID = event.target.getAttribute('data-network');
+        const group = document.getElementById(targetGroupID);
         
-        // Tooltip sichtbar machen
-        this.tooltipEl.style.display = "block";
+        if (group) {
+            // 2. Setze die Sichtbarkeit je nachdem, ob der Haken drin ist oder nicht
+            group.style.visibility = event.target.checked ? "visible" : "hidden";
+        }
     });
+});
 
-    // 🚀 MAUS BEWEGT SICH (Tooltip folgt dem Zeiger)
-    satCircle.addEventListener("pointermove", (event) => {
-        // Positionierung anhand der echten Maus-Bildschirmpixel (+15px Offset, damit es nicht unter dem Zeiger klebt)
-        this.tooltipEl.style.left = (event.clientX + 15) + "px";
-        this.tooltipEl.style.top = (event.clientY + 15) + "px";
-    });
 
-    // 🚀 MAUS VERLÄSST DEN SATELLITEN
-    satCircle.addEventListener("pointerleave", () => {
-        this.tooltipEl.style.display = "none";
-    });
 
-    this.layers[satData.network].appendChild(satCircle);
+const satelliteGroup = document.getElementById("my-satellite-group");
+
+// Gruppe komplett unsichtbar machen (Element fliegt aus dem Rendering)
+satelliteGroup.style.display = "none";
+
+// Gruppe wieder absolut sicher einblenden
+satelliteGroup.style.display = "inline"; 
+
+
+
+
+
+
+
+
+function saveSvgFile() {
+    // 1. Hol dir dein SVG-Element (passe die ID 'skyplot' an deine echte SVG-ID an)
+    const svgElement = document.getElementById("skyplot");
+    if (!svgElement) return;
+
+    // 2. Wandle das SVG-Element und alle seine Kinder in einen echten XML-Textstring um
+    const serializer = new XMLSerializer();
+    let svgString = serializer.serializeToString(svgElement);
+
+    // 3. Wichtig für die Datei: Füge den XML-Namensraum hinzu, falls er im HTML fehlt
+    if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
+        svgString = svgString.replace(/^<svg/, '<svg xmlns="http://w3.org"');
+    }
+
+    // 4. Erzeuge ein Blob-Objekt (eine virtuelle Textdatei im Arbeitsspeicher des Browsers)
+    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    // 5. Erstelle einen unsichtbaren Download-Link und löse ihn automatisch aus
+    const downloadLink = document.createElement("a");
+    downloadLink.href = url;
+    downloadLink.download = "satellite_skyplot.svg"; // So heißt deine Datei danach
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    
+    // 6. Aufräumen: Link löschen und Speicher freigeben
+    document.body.removeChild(downloadLink);
+    URL.revokeObjectURL(url);
 }
 
 */

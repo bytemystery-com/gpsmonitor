@@ -41,6 +41,7 @@ import (
 	"time"
 
 	"gpsmonitord/cfg"
+	"gpsmonitord/gps"
 	"gpsmonitord/helper"
 	"gpsmonitord/raspi"
 )
@@ -75,13 +76,9 @@ type WebDataGps struct {
 	DateTime     *time.Time `json:"dt"`
 }
 
-type WebDataSat struct {
-	// DewPoint2    float32 `json:"dewpoint2"`
-}
-
 type WebDataAll struct {
-	Sats WebDataSat `json:"sats"`
-	Gps  WebDataGps `json:"gps"`
+	Sats []gps.SatInfo `json:"sats"`
+	Gps  WebDataGps    `json:"gps"`
 }
 
 type WebCallBacks interface {
@@ -142,17 +139,6 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	data := ws.callBacks.GetData()
 	type config struct {
 		UpdateInterval int `json:"update_interval"`
-	}
-
-	type timed struct {
-		Day   int `json:"day"`
-		Month int `json:"month"`
-		Year  int `json:"year"`
-		Wday  int `json:"wday"`
-		Hour  int `json:"hour"`
-		Min   int `json:"min"`
-		Sec   int `json:"sec"`
-		Dst   int `json:"dst"`
 	}
 
 	type sd struct {

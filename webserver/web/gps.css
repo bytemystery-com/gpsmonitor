@@ -13,6 +13,17 @@
   --gps-axis_text_color: #0000FF;
   --gps-axis_text_font_family: sans-serif;
   --gps-axis_text_font_weight: bold;
+  --gps-sat_network_0_color: #dedede; /* Other */
+  --gps-sat_network_1_color: #ffcccc; /* GPS */
+  --gps-sat_network_2_color: #a6d0ff; /* GLONASS */
+  --gps-sat_network_3_color: #bafc90; /* Galileo */
+  --gps-sat_network_4_color: #fdf699; /* BeiDou */
+  --gps-sat_network_5_color: #f7d194; /* QZSS */
+  --gps-sat_network_6_color: #f1caff; /* NaviC */
+  --gps-sat_used_color: #f96969; /* used */
+  --gps-sat_used_stroke_width: 1.0; /* in Pixel*/
+  --gps-sat_strength_min_radius: 0.01;
+  --gps-sat_strength_max_radius: 0.03;
 }
 
 .gps_base:focus
@@ -30,11 +41,62 @@
 	/* Sorgt dafür, dass das Padding den Kasten nicht vergrößert */
 	box-sizing: border-box;	
 	margin: 5px;
-    vertical-align: top;
 }
 
 @media (max-width: 49.45em) {
     .gps_view {
         width: calc(22em - 10px)
     }
+}
+
+.sat_tooltip
+{
+    position: fixed; 
+    display: none; 
+    background: rgba(255, 255, 230, 0.75); 
+    color: black; 
+    padding: 8px 12px; 
+    border-radius: 4px; 
+    font-family: sans-serif; 
+    font-size: 12px; 
+    pointer-events: none;
+    z-index: 9999;
+}
+
+.sat_tooltip_grid,
+.sat_tooltip_grid_inner {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 8px;    
+}
+
+.sat_tooltip_grid_inner {
+    grid-column: 1 / -1;
+    padding-left: 16px;
+}
+
+
+.sat_tooltip_grid,
+.sat_tooltip_grid_inner{
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0 8px;    
+}
+
+.sat_tooltip_grid_inner
+{
+    grid-column: 1 / -1;
+    padding-left: 16px;
+}
+
+.sat_tooltip_grid_key,
+.sat_tooltip_grid_key_inner{
+    font-weight: bold;
+}
+
+.sat_tooltip_grid_key_inner
+{
+    text-align: right;
+    justify-self: end;
+    width: 100%;
 }
