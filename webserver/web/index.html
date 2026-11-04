@@ -12,6 +12,7 @@
     	<link rel="stylesheet" href="gpsmonitor.css"/>
     	<link rel="stylesheet" href="gps.css"/>
 		<script src="gps.js"></script>
+		<script src="maps.js"></script>
 		<script src="gpsmonitor.js"></script>
 	</head>
 	<body onload="doLoad()">
@@ -138,12 +139,20 @@
 				</fieldset>
 			</div>
 
-			<div class="break">&nbsp;</div>
+			<div class="container">
+				<fieldset class="box fieldset_map"><legend class="legend legend_svg">Map</legend>
+					<iframe id="google_map" style="display: none" class="gps_map"
+						loading="lazy">
+					</iframe>
+					<div id="gps_map" style="display: none" class="gps_map">
+					</div>
+				</fieldset>
+			</div>
 			
 			<div class="break">&nbsp;</div>
                
 			<div class="container">
-				<fieldset class="box svg_status" id="gps_box"><legend class="legend legend_svg" id="status_caption">GPS</legend>
+				<fieldset class="box svg_status" id="gps_box"><legend class="legend legend_svg" id="svg_caption">GPS</legend>
 					<div class="svg_tablecell" id="svg_table">
 						<svg id="gps_svg" class="gps_view" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 							<g id="gps_frame">
@@ -168,6 +177,9 @@
 								<option value="2">Used</option>
 								<option value="0">Not used</option>
 								</select>
+							</span>
+							<span>
+						    <button id="svg_save" class="svg_save" type="button">Save...</button>
 							</span>
 						</div>
 					</div>

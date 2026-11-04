@@ -1,16 +1,27 @@
 const version = "v1.0";
 
-var updateDataTimer = null;
-var debug = 0;
-var updateInterval = 5000;
-var data_request = null;
-var gpsViews = new Array();
+let updateDataTimer = null;
+const debug = 0;
+let updateInterval = 5000;
+let data_request = null;
+const gpsViews = new Array();
 
 gpsView = new GpsView("gps_");
 gpsViews.push(gpsView);
 
+// mapLibre = new MapLibreMap('gps_map')
+// mapOpenStreet = new OpenStreetMap('gps_map')
+mapGoogleMap = new GoogleMap('google_map', 10)
+
 function doLoad()
 {
+	if (isDefined('mapLibre'))
+		mapLibre.Load();
+	if (isDefined('mapOpenStreet'))
+		mapOpenStreet.Load();
+	if (isDefined('mapGoogleMap'))
+		mapGoogleMap.Load();
+
 	doLoadGpsViews();
 	doStart();
 	doPeriodic();
@@ -239,6 +250,7 @@ function doPeriodic()
 						}).format(date);
 						return formattedString
 					});
+					UpdateMap(gps.la, gps.lo);
 				}
 				if (json.data?.sats)
 					doUpdateGpsViews(json.data.sats)
@@ -248,6 +260,21 @@ function doPeriodic()
 		}
 		data_request.send();
 	}
+}
+
+function UpdateMap(la, lo) {
+	if (isDefined('mapLibre'))
+		mapLibre.SetPosition(la, lo)
+
+	if (isDefined('mapOpenStreet'))
+		mapOpenStreet.SetPosition(la, lo)
+
+	if (isDefined('mapGoogleMap'))
+		mapGoogleMap.SetPosition(la, lo)
+}
+
+function isDefined(variableName) {
+	return window[variableName] != null;
 }
 
 function pad(num, size)

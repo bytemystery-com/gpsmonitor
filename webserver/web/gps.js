@@ -1,6 +1,7 @@
 class GpsView {
 	static get NUMBER_OF_NETWORKS() { return 7; }
 	static get SVG_NAMESPACE() { return "http://www.w3.org/2000/svg"; }
+	static get SVG_SCALEFACTOR() { return 100.0; }
   	constructor(prefix) {
 	this.prefix = prefix
 	this.satColors = new Map();
@@ -12,7 +13,7 @@ class GpsView {
 		if (svg.style.vectorEffect === undefined) {
 			alert("no vector effect")
 		}
-		svg.setAttribute("viewBox", "-1.15 -1.15 2.3 2.3");
+		svg.setAttribute("viewBox", `${-1.15*GpsView.SVG_SCALEFACTOR} ${-1.15*GpsView.SVG_SCALEFACTOR} ${2.3*GpsView.SVG_SCALEFACTOR} ${2.3*GpsView.SVG_SCALEFACTOR}`);
 		let back = document.getElementById(this.prefix + "back");
 		removeAllChilds(back);
 
@@ -34,10 +35,13 @@ class GpsView {
 		this.defaultBlue = getDefaultBlue()
 
 		this.tooltip = document.getElementById("sat-tooltip");
-		this.satMinStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_min_radius`))
-		this.satMaxStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_max_radius`))
+		this.satMinStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_min_radius`))*GpsView.SVG_SCALEFACTOR
+		this.satMaxStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_max_radius`))*GpsView.SVG_SCALEFACTOR
+		this.radiusDelta = this.satMaxStrengthRadius;
 		this.satUsedColor = getCustomCssProperty(`--gps-sat_used_color`)
 		this.satUsedStrokeWidth = getCustomCssProperty(`--gps-sat_used_stroke_width`)
+		this.fontSize = Number(getCustomCssProperty('--gps-axis_text_font_size'))*GpsView.SVG_SCALEFACTOR;
+
 
 		this.paintBackground()
 		this.coordinateSystem()
@@ -49,12 +53,15 @@ class GpsView {
 				const netWorkId = Number(event.target.getAttribute('data-network'));
 				const g = document.getElementById(`svg_${this.prefix}network_${netWorkId}`);
 				this.showMap.set(netWorkId, Boolean(event.target.checked))
-				console.log(netWorkId, event.target.checked, g)
 				if (g) {
 					 g.style.display = event.target.checked ? "" : "none";
 				}
 				localStorage.setItem('gps_sat_show', JSON.stringify(Array.from(this.showMap.entries())));
 			});
+			const itemContainer = checkbox.closest('.sat_checkbox-item');
+			if (itemContainer){
+				itemContainer.style.backgroundColor = this.satColors.get(netWorkId)
+			}
 		});
 		
 		document.querySelectorAll('.gps_sat_used').forEach(selectbox => {
@@ -73,15 +80,50 @@ class GpsView {
 				});
 			});
 		});
+		const save = document.getElementById('svg_save');
+			save.addEventListener('click', (event) => {
+
+			// 2. Wandle das SVG-Element in einen XML-Textstring um (Original bleibt unverändert)
+			const serializer = new XMLSerializer();
+			let svgString = serializer.serializeToString(svg);
+
+			const festeBreite = "1200";
+			const festeHoehe = "1200";
+
+			if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
+				// Falls der Namensraum fehlt: Füge xmlns, width und height zusammen ein
+				svgString = svgString.replace(/^<svg/, `<svg xmlns="http://w3.org" width="${festeBreite}" height="${festeHoehe}"`);
+			} else {
+				// Falls der Namensraum schon da ist: Ergänze nur width und height im <svg>-Tag
+				svgString = svgString.replace(/^<svg/, `<svg width="${festeBreite}" height="${festeHoehe}"`);
+			}
+
+			// 4. Erzeuge ein Blob-Objekt (eine virtuelle Textdatei im Arbeitsspeicher des Browsers)
+			const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+			const url = URL.createObjectURL(blob);
+
+			// 5. Erstelle einen unsichtbaren Download-Link und löse ihn automatisch aus
+			const downloadLink = document.createElement("a");
+			downloadLink.href = url;
+			downloadLink.download = "satellite_skyplot.svg"; // So heißt deine Datei danach
+			document.body.appendChild(downloadLink);
+			downloadLink.click();
+			
+			// 6. Aufräumen: Link löschen und Speicher freigeben
+			document.body.removeChild(downloadLink);
+			URL.revokeObjectURL(url);
+
+				});
 	}
 
 	paintBackground() {
 		const color = getCustomCssProperty('--gps-back_color');
 		let back = document.getElementById(this.prefix + "back");
 		let circle = document.createElementNS(GpsView.SVG_NAMESPACE, "circle");
+		const baseRadius = 1.0 * GpsView.SVG_SCALEFACTOR + this.radiusDelta;
 		circle.setAttribute("cx", 0);
 		circle.setAttribute("cy", 0);
-		circle.setAttribute("r", 1.0);
+		circle.setAttribute("r", baseRadius);
 		circle.setAttribute("fill", color);
 		back.appendChild(circle);
 	}
@@ -95,11 +137,12 @@ class GpsView {
 		const stroke_width = getCustomCssProperty('--gps-main_axis_stroke_width');
 		let lines = document.getElementById(this.prefix + "coord_lines");
 		const fragment = document.createDocumentFragment();
+		const baseRadius = 1.0 * GpsView.SVG_SCALEFACTOR;
 
 		let lineX = document.createElementNS(GpsView.SVG_NAMESPACE, "line");
- 		lineX.setAttribute("x1", "-1.0");
+ 		lineX.setAttribute("x1", `${-baseRadius - this.radiusDelta}`);
   		lineX.setAttribute("y1", "0.0");
-  		lineX.setAttribute("x2", "1.0");
+  		lineX.setAttribute("x2", `${baseRadius + this.radiusDelta}`);
   		lineX.setAttribute("y2", "0.0");
   		lineX.setAttribute("stroke", color);
   		lineX.setAttribute("stroke-width", stroke_width);
@@ -108,16 +151,16 @@ class GpsView {
 
 		let lineY = document.createElementNS(GpsView.SVG_NAMESPACE, "line");
  		lineY.setAttribute("x1", "0.0");
-  		lineY.setAttribute("y1", "1.0");
+  		lineY.setAttribute("y1", `${baseRadius + this.radiusDelta}`);
   		lineY.setAttribute("x2", "0.0");
-  		lineY.setAttribute("y2", "-1.0");
+  		lineY.setAttribute("y2", `${-baseRadius - this.radiusDelta}`);
   		lineY.setAttribute("stroke", color);
   		lineY.setAttribute("stroke-width", stroke_width);
 		lineY.setAttribute("vector-effect", "non-scaling-stroke");
 		fragment.appendChild(lineY);
 
-		let x1 = Math.cos((Math.PI/180)*45)
-		let y1 = Math.sin((Math.PI/180)*45)
+		let x1 = baseRadius * Math.cos((Math.PI/180)*45)
+		let y1 = baseRadius * Math.sin((Math.PI/180)*45)
 		const color2 = getCustomCssProperty('--gps-help_axis_color');
 		const stroke_width2 = getCustomCssProperty('--gps-help_axis_stroke_width');
 		const stroke_dash = removeQuotes(getCustomCssProperty('--gps-help_axis_dash'));
@@ -151,7 +194,7 @@ class GpsView {
 		const stroke_dash_circle = removeQuotes(getCustomCssProperty('--gps-help_circle_dash'))
 		circle1.setAttribute("cx", 0);
 		circle1.setAttribute("cy", 0);
-		circle1.setAttribute("r", 2.0/3.0);
+		circle1.setAttribute("r", baseRadius*(2.0/3.0));
   		circle1.setAttribute("fill", "none");
   		circle1.setAttribute("stroke", color_circle);
   		circle1.setAttribute("stroke-width", stroke_width_circle);
@@ -163,7 +206,7 @@ class GpsView {
 		const circle2 = document.createElementNS(GpsView.SVG_NAMESPACE, "circle");
 		circle2.setAttribute("cx", 0);
 		circle2.setAttribute("cy", 0);
-		circle2.setAttribute("r", 1.0/3.0);
+		circle2.setAttribute("r", baseRadius*(1.0/3.0));
   		circle2.setAttribute("fill", "none");
   		circle2.setAttribute("stroke", color_circle);
   		circle2.setAttribute("stroke-width", stroke_width_circle);
@@ -172,62 +215,61 @@ class GpsView {
 		fragment.appendChild(circle2);
 
 		const labelE = document.createElementNS(GpsView.SVG_NAMESPACE, "text");
-    	labelE.setAttribute("y", "0.0");   // Genau auf der horizontalen Achsen-Linie
     	// 2. Ausrichtung für die Außenseite
     	labelE.setAttribute("text-anchor", "start");       // Linksbündig (Text fließt nach rechts außen weg)
-    	labelE.setAttribute("dominant-baseline", "central"); // Vertikal perfekt mittig auf der Achse zentriert
+    	labelE.setAttribute("dominant-baseline", "alphabetic"); // Vertikal perfekt mittig auf der Achse zentriert
 
 		// 3. Styling & Inhalt
 		let colorText = getCustomCssProperty('--gps-axis_text_color');
 		if (colorText == "auto") {
 			colorText = this.defaultBlue
 		}
-		const fontSize = getCustomCssProperty('--gps-axis_text_font_size');
 		const fontFamily = getCustomCssProperty('--gps-axis_text_font_family');
 		const fontWeight = getCustomCssProperty('--gps-axis_text_font_weight');
-		labelE.setAttribute("font-size", fontSize); // Etwas größer, da es außen steht
+		labelE.setAttribute("font-size", this.fontSize); // Etwas größer, da es außen steht
 		labelE.setAttribute("fill", colorText);
 		labelE.setAttribute("font-family", fontFamily);
 		labelE.setAttribute("font-weight", fontWeight);
 		labelE.textContent = "E";
-		const textSize = this.getTextSize(lines, "W", fontSize, fontFamily, fontWeight)
-	    labelE.setAttribute("x", 1.0 + textSize.width / 3.0);
+		const textSize = this.getTextSize(lines, "W", this.fontSize, fontFamily, fontWeight)
+	    labelE.setAttribute("x", baseRadius + textSize.width / 3.0 + this.radiusDelta);
+    	labelE.setAttribute("y", textSize.height * 0.3);
 	    fragment.appendChild(labelE);
 
 	    const labelW = document.createElementNS(GpsView.SVG_NAMESPACE, "text");
-    	labelW.setAttribute("y", "0.0");   // Genau auf der horizontalen Achsen-Linie
+    	labelW.setAttribute("y", textSize.height/3.0);   // Genau auf der horizontalen Achsen-Linie
     	labelW.setAttribute("text-anchor", "end");
-    	labelW.setAttribute("dominant-baseline", "central");
-		labelW.setAttribute("font-size", fontSize);
+    	labelW.setAttribute("dominant-baseline", "alphabetic");
+		labelW.setAttribute("font-size", this.fontSize);
 		labelW.setAttribute("fill", colorText);
 		labelW.setAttribute("font-family", fontFamily);
 		labelW.setAttribute("font-weight", fontWeight);
 		labelW.textContent = "W";
-	    labelW.setAttribute("x", -1.0 - textSize.width / 3.0);
+	    labelW.setAttribute("x", -baseRadius - textSize.width / 3.0 - this.radiusDelta);
 	    fragment.appendChild(labelW);
 
 	    const labelN = document.createElementNS(GpsView.SVG_NAMESPACE, "text");
     	labelN.setAttribute("x", "0.0");
     	labelN.setAttribute("text-anchor", "middle");
-    	labelN.setAttribute("dominant-baseline", "text-after-edge");
-		labelN.setAttribute("font-size", fontSize);
+    	labelN.setAttribute("dominant-baseline", "alphabetic");
+		labelN.setAttribute("font-size", this.fontSize);
 		labelN.setAttribute("fill", colorText);
 		labelN.setAttribute("font-family", fontFamily);
 		labelN.setAttribute("font-weight", fontWeight);
 		labelN.textContent = "N";
-	    labelN.setAttribute("y", -1.0);
+	    labelN.setAttribute("y", -baseRadius - textSize.height *0.3 - this.radiusDelta);
 	    fragment.appendChild(labelN);
 
 	    const labelS = document.createElementNS(GpsView.SVG_NAMESPACE, "text");
     	labelS.setAttribute("x", "0.0");
     	labelS.setAttribute("text-anchor", "middle");
-    	labelS.setAttribute("dominant-baseline", "text-before-edge");
-		labelS.setAttribute("font-size", fontSize);
+    	labelS.setAttribute("dominant-baseline", "alphabetic");
+		labelS.setAttribute("font-size", this.fontSize);
 		labelS.setAttribute("fill", colorText);
 		labelS.setAttribute("font-family", fontFamily);
 		labelS.setAttribute("font-weight", fontWeight);
 		labelS.textContent = "S";
-	    labelS.setAttribute("y", 1.0 + textSize.height/5.0);
+	    labelS.setAttribute("y", baseRadius + textSize.height + this.radiusDelta);
 	    fragment.appendChild(labelS);
 
 		lines.append(fragment)
@@ -243,6 +285,7 @@ class GpsView {
 		const fragment = document.createDocumentFragment();
 		const minStrengthRange = 10
 		const maxStrengthRange = 50
+		const baseRadius = 1.0 * GpsView.SVG_SCALEFACTOR;
 		let g
 		for (let i = 0; i < GpsView.NUMBER_OF_NETWORKS; i++) {
 		    g = document.createElementNS(GpsView.SVG_NAMESPACE, "g");
@@ -269,7 +312,7 @@ class GpsView {
 			}
 			// add circle data to g
 
-			let r = 1.0 - 1.0 * sat.el/90.0
+			let r = baseRadius*(1.0 - 1.0 * sat.el/90.0)
 			let x = r*Math.sin((Math.PI/180.0)*sat.az)
 			let y = -r*Math.cos((Math.PI/180.0)*sat.az)
 			
@@ -278,7 +321,6 @@ class GpsView {
 			circle.setAttribute("cy", y);
 			circle.setAttribute("fill", this.satColors.get(networkId));
 			let maxStrength = Number(0)
-			r = 0
 			for (const strength of Object.values(sat.st)) {
 				if (strength != null) {
 					const n = Number(strength)
@@ -551,31 +593,6 @@ function saveSvgFile() {
     // 6. Aufräumen: Link löschen und Speicher freigeben
     document.body.removeChild(downloadLink);
     URL.revokeObjectURL(url);
-
-
-
-
-
-
-
-
-	function holeStandardBlau() {
-  // 1. Ein temporäres, unsichtbares Element erstellen
-  const tempDiv = document.createElement('div');
-  
-  // 2. Ihm die offizielle System-Akzentfarbe als Hintergrund geben
-  tempDiv.style.backgroundColor = 'AccentColor'; 
-  tempDiv.style.display = 'none';
-  document.body.appendChild(tempDiv);
-
-  // 3. Jetzt MUSS der Browser das "System-Blau" in echtes RGB umrechnen!
-  const echerRgbWert = window.getComputedStyle(tempDiv).backgroundColor;
-
-  // 4. Das Hilfselement wieder sauber löschen
-  tempDiv.remove();
-
-  return echerRgbWert; 
-}
 }
 
 */

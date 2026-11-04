@@ -13,15 +13,15 @@
   --gps-axis_text_color: auto;
   --gps-axis_text_font_family: sans-serif;
   --gps-axis_text_font_weight: bold;
-  --gps-sat_network_0_color: #dedede; /* Other */
-  --gps-sat_network_1_color: #ffcccc; /* GPS */
+  --gps-sat_network_0_color: #f5f5f5f5; /* Other */
+  --gps-sat_network_1_color: #fcc3c3; /* GPS */
   --gps-sat_network_2_color: #a6d0ff; /* GLONASS */
-  --gps-sat_network_3_color: #bafc90; /* Galileo */
-  --gps-sat_network_4_color: #fdf699; /* BeiDou */
+  --gps-sat_network_3_color: #fdf699; /* BeiDou */
+  --gps-sat_network_4_color: #bafc90; /* Galileo */
   --gps-sat_network_5_color: #f7d194; /* QZSS */
   --gps-sat_network_6_color: #f1caff; /* NaviC */
-  --gps-sat_used_color: #f96969; /* used */
-  --gps-sat_used_stroke_width: 1.0; /* in Pixel*/
+  --gps-sat_used_color: #ff5454; /* used */
+  --gps-sat_used_stroke_width: 1.5; /* in Pixel*/
   --gps-sat_strength_min_radius: 0.01;
   --gps-sat_strength_max_radius: 0.03;
 }
@@ -34,7 +34,7 @@
 .gps_view
 {
 	display: block;
-  	width: calc(2 * 22em - 9px);
+  	width: calc(43.45em);
     height: auto;
 	aspect-ratio: 1 / 1; 
 	padding: 10px 10px 24px 10px;
@@ -42,9 +42,9 @@
 	margin: 5px;
 }
 
-@media (max-width: 50.4em) {
+@media (max-width: 49.46em) {
     .gps_view {
-        width: calc(22em - 30px)
+        width: calc(19em + 18px)
     }
 }
 
@@ -108,6 +108,8 @@
     width: 100%;
     margin: 0 auto;
     padding: 5px 0;
+    align-items: start;
+    padding-left: 8px;
 }
 
 .sat_checkbox-item {
@@ -116,4 +118,69 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    height: 40px;
+    box-sizing: border-box;
+}
+
+.sat_checkbox-item:has(.gps_sat_used) {
+    padding-left: 0;
+    padding-right: 0;
+}
+
+.svg_save {
+    width: 100%;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: #ffffff;
+    color: #495057;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    margin-left: auto;
+    max-width: none;
+}
+
+.svg_save:hover {
+    background-color: #f0f7ff;
+    border-color: #a6d0ff;
+    color: #0056b3;
+}
+
+.svg_save:active {
+    transform: scale(0.96);    /* Button drückt sich im Grid leicht ein */
+    background-color: #d0e5ff; /* Etwas dunkleres Blau beim Drücken */
+}
+
+.gps_sat_used {
+    width: 140px;
+    height: 40px;
+    padding: 6px 12px;
+    background-color: #ffffff;
+    color: #495057;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+}
+
+.gps_sat_used:hover {
+    background-color: #f0f7ff;
+    border-color: #a6d0ff;
+    color: #0056b3;
+}
+
+.gps_sat_used:focus {
+    outline: none;
+    border-color: #a6d0ff;
 }

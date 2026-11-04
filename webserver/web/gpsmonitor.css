@@ -107,7 +107,7 @@ body
 
 /* SVG */
 .svg_status {
- float: left;
+  float: left;
   width: auto;
   height: auto;
   padding: 10px;
@@ -171,4 +171,42 @@ body
 	width: 100%;
 	margin-bottom: 20px;
 	color: rgb(67, 144, 198);
+}
+
+/* Maps */
+.fieldset_map {
+    float: left;
+    width: 22em;
+    margin-left: 0;
+    margin-right: 20px;
+    margin-top: 10px;
+    padding: 10px;
+    height: calc(35em + 10px);
+}
+
+.gps_map {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+    border: 0;
+}
+
+@media (min-width: 49.42em) and (max-width: 80em) {
+ .gps_map {
+        width: 100%;
+    }
+    .fieldset_map {
+        width: calc(45em + 5px);
+    }
+}
+
+@media (max-width: 49.46em) {
+ .gps_map {
+        width: 100%;
+    }
+    .fieldset_map {
+        width: 22em;
+    }
 }
