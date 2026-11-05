@@ -37,8 +37,8 @@ License: MIT
 
 ## Links
 
-- [Readme](https://bytemystery-com.github.io/gps/)
-- [Repository](https://github.com/bytemystery-com/gps/)
+- [Readme](https://bytemystery-com.github.io/gpsmonitor/)
+- [Repository](https://github.com/bytemystery-com/gpsmonitor/)
 
 © Copyright Reiner Pröls, 2026-2027
 
