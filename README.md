@@ -28,7 +28,7 @@ License: MIT
 
 ## Photos
 
-![alt text](/fotos/m9n.jpg "M9N receiver")
+![alt text](/doc/fotos/m9n.jpg "M9N receiver")
 
 ## Screenshots
 
