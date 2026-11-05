@@ -29,7 +29,18 @@ class MapLibreMap {
         }
         this.map = new maplibregl.Map({
             container: this.id,
-            style: 'https://tiles.openfreemap.org/styles/liberty',
+            // Liberty – farbiges Standard-Design
+            // style: 'https://tiles.openfreemap.org/styles/liberty',
+
+            // Bright – klar und kontrastreich
+            style: 'https://tiles.openfreemap.org/styles/bright',
+
+            // Positron – hellgrau und dezent
+            // style: 'https://tiles.openfreemap.org/styles/positron',
+
+            // Dark Matter – dunkles Design (CARTO)
+            // style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',            
+
             center: [0.0, 0.0],
             zoom: 16
         });
@@ -52,6 +63,7 @@ class MapLibreMap {
             this.marker.setLngLat([lng, lat]);
         if (this.map)
           this.map.panTo([lng, lat]);
+        // this.map.jumpTo({ center: [lng, lat] });
     }
 }
 

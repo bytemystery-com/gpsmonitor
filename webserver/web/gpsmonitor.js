@@ -1,3 +1,13 @@
+
+/*
+* Uncomment line for map you want - and comment out the others !
+*/
+
+mapLibre = new MapLibreMap('gps_map')
+// mapOpenStreet = new OpenStreetMap('gps_map')
+// mapGoogleMap = new GoogleMap('google_map', 10)
+
+// -------------------------------------------------------------------------------
 const version = "v1.0";
 
 let updateDataTimer = null;
@@ -9,18 +19,19 @@ const gpsViews = new Array();
 gpsView = new GpsView("gps_");
 gpsViews.push(gpsView);
 
-// mapLibre = new MapLibreMap('gps_map')
-// mapOpenStreet = new OpenStreetMap('gps_map')
-mapGoogleMap = new GoogleMap('google_map', 10)
+let usedMap = null
+if (isDefined('mapLibre')) {
+	usedMap = mapLibre;
+} else if (isDefined('mapOpenStreet')) {
+	usedMap = mapOpenStreet;
+} else if (isDefined('mapGoogleMap')){
+	usedMap = mapGoogleMap;
+}
 
 function doLoad()
 {
-	if (isDefined('mapLibre'))
-		mapLibre.Load();
-	if (isDefined('mapOpenStreet'))
-		mapOpenStreet.Load();
-	if (isDefined('mapGoogleMap'))
-		mapGoogleMap.Load();
+	if (isDefined('usedMap'))
+		usedMap.Load();
 
 	doLoadGpsViews();
 	doStart();
@@ -263,18 +274,18 @@ function doPeriodic()
 }
 
 function UpdateMap(la, lo) {
-	if (isDefined('mapLibre'))
-		mapLibre.SetPosition(la, lo)
-
-	if (isDefined('mapOpenStreet'))
-		mapOpenStreet.SetPosition(la, lo)
-
-	if (isDefined('mapGoogleMap'))
-		mapGoogleMap.SetPosition(la, lo)
+	if (isDefined('usedMap'))
+		usedMap.SetPosition(la, lo);
 }
 
 function isDefined(variableName) {
-	return window[variableName] != null;
+    try {
+        // eval fängt den globalen und lokalen Scope (let, const, var) ab
+        return eval(`typeof ${variableName}`) !== 'undefined' && eval(variableName) !== null;
+    } catch (e) {
+        // Falls die Variable gar nicht deklariert ist, fliegst du ins catch und gibst false zurück
+        return false; 
+    }
 }
 
 function pad(num, size)
