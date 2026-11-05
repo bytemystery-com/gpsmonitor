@@ -27,9 +27,15 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+	"io"
 	"log"
 	"math"
+	"net/http"
 	"os"
+	"runtime"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -110,6 +116,30 @@ func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
 
 func main() {
 	var err error
+	var debug bool
+	str := os.Getenv("GPSMONITORD_DEBUG")
+	if strings.EqualFold(str, "true") || strings.EqualFold(str, "on") || strings.EqualFold(str, "yes") || strings.EqualFold(str, "1") {
+		debug = true
+	}
+
+	d := flag.Bool("d", false, "debug")
+	flag.Parse()
+	if *d {
+		debug = true
+	}
+	log.Printf("Debug: %v, Go version: %v", debug, runtime.Version()[2:])
+	// journalctl -u weatherd.service
+
+	if !debug {
+		log.SetOutput(io.Discard)
+	} else {
+		// curl http://localhost:6060/debug/pprof/
+		// go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+		go func() {
+			http.ListenAndServe("0.0.0.0:6060", nil)
+		}()
+	}
+
 	cfgFile := os.Getenv("GPSMONITORD_INI_FILE")
 	if cfgFile == "" {
 		cfgFile = cfg.DEF_CFG_FILE
@@ -131,13 +161,13 @@ func main() {
 			log.Printf("Port: %v", item.Manufacturer)
 		}*/
 	mode := &serial.Mode{
-		BaudRate: 38400,
-		DataBits: 8,
-		Parity:   serial.NoParity,
-		StopBits: serial.OneStopBit,
+		BaudRate: Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_BAUD_RATE, cfg.DEF_UART_BAUD_RATE),
+		DataBits: Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_BITS, cfg.DEF_UART_DATA_BITS),
+		Parity:   serial.Parity(Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_PARITY, cfg.DEF_UART_PARITY)),
+		StopBits: serial.StopBits(Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_STOP_BITS, cfg.DEF_UART_STOP_BITS)),
 	}
 
-	port, err := serial.Open("/dev/ttyAMA0", mode)
+	port, err := serial.Open(Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV), mode)
 	if err != nil {
 		log.Printf("open port failed %v", err)
 	}
@@ -150,25 +180,25 @@ func main() {
 		return
 	}
 	Data.Gps = g
-	go g.Start(nil, true)
+	go g.Start(nil, Data.Config.GetBoolValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_IS_UBLOX, cfg.DEF_IS_UBLOX))
 
 	var callBacks WebCallbacksImpl
 	Data.WebServer = webserver.NewWebServer(callBacks, Data.Config)
 	webError := make(chan error, 2)
 	Data.WebServer.StartWebServer(webError)
 
-	for {
-		time.Sleep(250 * time.Millisecond)
-		if Data.Gps.GpsSumData.IsReady.Load() {
-			g.GpsSumData.Print()
-			// sats := g.GetSattelites()
-			// log.Printf("Sats: %d", len(sats))
-			/*
-				for _, item := range sats {
-					item.Print()
-				}*/
-		}
-		/*
+	/*
+		for {
+			time.Sleep(250 * time.Millisecond)
+			if Data.Gps.GpsSumData.IsReady.Load() {
+				g.GpsSumData.Print()
+				// sats := g.GetSattelites()
+				// log.Printf("Sats: %d", len(sats))
+					for _, item := range sats {
+						item.Print()
+					}
+			}
+
 			notify := make(chan any, 20)
 			go g.Sart(notify)
 			for val := range notify {
@@ -192,6 +222,11 @@ func main() {
 					data.Print()
 				}
 			}
-		*/
-	}
+		}
+	*/
+
+	x := <-webError
+	fmt.Printf("WebError %v", x)
+
+	fmt.Println("Exit")
 }

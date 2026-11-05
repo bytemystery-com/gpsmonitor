@@ -1,47 +1,44 @@
-# Weather station
+
+# GPS Monitor
 
 ![alt text](/webserver/web/favicon.png "Logo")
 
-Weather station is my private project for monitoring temperature, humidity, air pressure and ambient light.
-I originally developed the system using an ESP32. But ESP IDF changes frequently, often breaking compatibility with existing code so I decided to rewrite the projekt based on Raspberry Pi and [Go](https://go.dev/).
-I use a Raspberry Pi 5 with 1 GB of RAM and a 64 GByte Lexar SD-card.  
-As sensors I use:
+GPS Monitor is a private project for displaying information received from a GPS receiver.
 
-- SHT45 for temperature and humidity  
-- BMP581 for pressure  
-- VEML7700 for ambient light
-  
-The sensors are installed in a sensor enclosure connected to the Raspberry Pi via a 6 m cable using I²C communication. I have added a LTC4311 to improve signal quality - but tests have shown that it also
-works without it.  
-The sensor PCBs have been coated to protect against oxidation.
+I run it on a Raspberry Pi 5 using a serial interface.
 
-Data are filtered with a two Exponential Moving Average (EMA) filters with different filter constants.
-So we get short-term and long-term filtered data.  
-For pressure we also calculate a one-hour and three-hour trends.
+The project includes an NMEA parser, which has been tested with a u-blox NEO-M9N receiver.
 
-Data are written to SD card in csv format.
-Actual and historical data are displayed on a website.
+The main page displays the most important GPS information. There is also a satellite view (skyplot), which is generated dynamically as an SVG using JavaScript. The SVG can also be exported.
 
-We use the 7.2 kernel from the [Raspberry Pi Linux project](https://github.com/raspberrypi/linux).
-We have removed some tracing, hooking, and debugging features to reduce the kernel size and improve performance.
+Additionally, a small map displays the current position.
+
+In `gpsmonitor.js`, you can configure which map provider to use:
+
+- MapLibre
+- OpenStreetMap
+- Google Maps (embedded via iframe)
+
+Since Google Maps does not offer a free API for this purpose, I use the simple iframe approach.
+
+To prevent unnecessary flickering, the map is only updated when the position changes by more than 10 metres.  
 
 Author: Reiner Pröls  
 License: MIT  
 
 ## Photos
 
-![alt text](/screenshots/raspberry.jpg "Raspberry Pi")
-![alt text](/screenshots/sensorbox2.jpg "Sensorbox")
+![alt text](/fotos/m9n.jpg "M9N receiver")
 
 ## Screenshots
 
-![alt text](/screenshots/main.jpg "Website main page")
-![alt text](/screenshots/config.jpg "Website config")
+![alt text](/screenshots/main.jpg "Main page")
+![alt text](/screenshots/sat.jpg "Sky view")
 
 ## Links
 
-- [Readme](https://bytemystery-com.github.io/weatherstation/)
-- [Repository](https://github.com/bytemystery-com/weatherstation/)
+- [Readme](https://bytemystery-com.github.io/gps/)
+- [Repository](https://github.com/bytemystery-com/gps/)
 
 © Copyright Reiner Pröls, 2026-2027
 

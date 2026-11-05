@@ -46,10 +46,10 @@ import (
 	"gpsmonitord/raspi"
 )
 
-//go:embed ssl/weatherd.crt
+//go:embed ssl/gpsmonitord.crt
 var internalSslCert []byte
 
-//go:embed ssl/weatherd.key
+//go:embed ssl/gpsmonitord.key
 var internalSslKey []byte
 
 const (
@@ -120,30 +120,11 @@ func (ws *WebServer) getUptime() string {
 	return fmt.Sprintf("%dd %02dh %02dm %02ds", days, hours, minutes, secs)
 }
 
-func (ws *WebServer) getCfg(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(ws.cfg.GetJson())
-}
-
-func (ws *WebServer) isDST(t time.Time) int {
-	_, offset := t.Zone()
-	_, standardOffset := time.Date(t.Year(), time.January, 1, 0, 0, 0, 0, t.Location()).Zone()
-	if offset != standardOffset {
-		return 1
-	}
-	return 0
-}
-
 func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	data := ws.callBacks.GetData()
 	type config struct {
 		UpdateInterval int `json:"update_interval"`
-	}
-
-	type sd struct {
-		Free  uint64 `json:"free"`
-		Total uint64 `json:"total"`
 	}
 
 	type raspiStatus struct {
@@ -309,23 +290,6 @@ func (ws *WebServer) restart(w http.ResponseWriter, r *http.Request) {
 	raspi.Restart(ws.cfg)
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Restart sheduled"))
-}
-
-func (ws *WebServer) setCfg(w http.ResponseWriter, r *http.Request) {
-	oldPass := ws.cfg.GetStringValue(cfg.SECTION_GENERAL, cfg.KEY_GENERAL_PASSWORD, "")
-	err := ws.cfg.SetCfg(r)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	} else {
-		if oldPass != ws.cfg.GetStringValue(cfg.SECTION_GENERAL, cfg.KEY_GENERAL_PASSWORD, "") {
-			ws.sessionsLock.Lock()
-			clear(ws.sessions)
-			ws.sessionsLock.Unlock()
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}
 }
 
 func (ws *WebServer) indexHandler(w http.ResponseWriter, _ *http.Request) {
@@ -525,9 +489,7 @@ func (ws *WebServer) StartWebServer(done chan<- error) {
 		http.FileServer(http.FS(webFS)).ServeHTTP(w, r)
 	})
 	mux.HandleFunc("GET /index.html", ws.indexHandler)
-	mux.HandleFunc("GET /getcfg", ws.getCfg)
 	mux.HandleFunc("GET /update", ws.getUpdate)
-	mux.HandleFunc("POST /setcfg", ws.setCfg)
 	mux.HandleFunc("POST /firmwareupdate", ws.fwUpdate)
 	mux.HandleFunc("GET /restart", ws.restart)
 	mux.HandleFunc("GET /query", ws.query)

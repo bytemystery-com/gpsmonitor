@@ -1,9 +1,37 @@
+/*!
+ * Copyright (c) 2026 Reiner Pröls
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Author: Reiner Pröls
+ */
+
+// Classes for (free) maps
 
 class MapLibreMap {
     constructor(id) {
         this.map = null;
         this.marker = null;
-		this.id = id
+		this.id = id;
+        this.followPosition = true;
     }
 
     Load() {
@@ -56,12 +84,36 @@ class MapLibreMap {
         this.map.on('click', (e) => {
             openGoogleMaps(e.lngLat.lat, e.lngLat.lng);
         });
+
+        document.addEventListener('mouseup', () => {
+            this.followPosition = true;
+        });
+
+        this.map.on('mousedown', () => {
+            // console.log('Mouse down');
+            this.followPosition = false;
+        });
+
+        this.map.on('mouseup', () => {
+            // console.log('Mouse up');
+            this.followPosition = true;
+        });
+
+        this.map.on('dragstart', () => {
+            this.followPosition = false;
+            // console.log("dragstart");
+        });
+
+        this.map.on('dragend', () => {
+            this.followPosition = true;
+            // console.log("dragend");
+        });        
     }
 
     SetPosition(lat, lng) {
         if (this.marker) 
             this.marker.setLngLat([lng, lat]);
-        if (this.map)
+        if (this.map && this.followPosition)
           this.map.panTo([lng, lat]);
         // this.map.jumpTo({ center: [lng, lat] });
     }
@@ -72,6 +124,7 @@ class OpenStreetMap {
         this.id = id;
         this.map = null;
         this.marker = null;
+        this.followPosition = true;
     }
     Load(){
         const css = document.createElement('link');
@@ -96,6 +149,7 @@ class OpenStreetMap {
             div.style.display = "block";
         }
         this.map = L.map(this.id).setView([0.0, 0.0], 16);
+        this.map.attributionControl.setPrefix(false);
 
         // Kartenebenen
         const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -109,13 +163,48 @@ class OpenStreetMap {
             // attribution: 'Tiles &copy; Esri'
         });
 
+        // CARTO Positron – hell und minimalistisch
+        const positron = L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=cb1_52qc_1_5e889000f77b390288d794b3', {
+            // attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        });
+
+        // CARTO Dark Matter – dunkle Karte
+        const dark = L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=cb1_52qc_1_5e889000f77b390288d794b3', {
+            // attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        });
+
+        // CARTO Voyager – farbige Straßenkarte
+        const voyager = L.tileLayer(
+            'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=cb1_52qc_1_5e889000f77b390288d794b3', {
+            // attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+        });
+
+        // OpenStreetMap HOT – Humanitarian
+        const hot = L.tileLayer(
+            'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+            // attribution: '&copy; OpenStreetMap contributors, HOT'
+        });
+
+        // CyclOSM – Radwege und Wanderwege
+        const cyclosm = L.tileLayer(
+            'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
+            // attribution: '&copy; OpenStreetMap contributors | CyclOSM'
+        });        
+
         // Standardkarte anzeigen
         osm.addTo(this.map);
         // Auswahlmenü
         L.control.layers({
             "OpenStreetMap": osm,
             "Topografisch": topo,
-            "Satellit": satellite
+            "Satellit": satellite,
+            "Positron (hell)": positron,
+            "Dark Matter (dunkel)": dark,
+            "Voyager": voyager,
+            "HOT": hot,
+            "CyclOSM (Radwege)": cyclosm
         }).addTo(this.map);
 
         this.marker = L.marker([0.0, 0.0]).addTo(this.map);
@@ -123,13 +212,39 @@ class OpenStreetMap {
         this.map.on('click', function(e) {
             openGoogleMaps(e.latlng.lat, e.latlng.lng);
         });
+        document.addEventListener('mouseup', () => {
+            this.followPosition = true;
+        });
+
+        this.map.on('mousedown', () => {
+            // console.log('Mouse down');
+            this.followPosition = false;
+        });
+
+        this.map.on('mouseup', () => {
+            // console.log('Mouse up');
+            this.followPosition = true;
+        });
+
+        this.map.on('dragstart', () => {
+            this.followPosition = false;
+            // console.log("dragstart");
+        });
+
+        this.map.on('dragend', () => {
+            this.followPosition = true;
+            // console.log("dragend");
+        });        
     }
 
     SetPosition(lat, lng) {
-        if (this.marker)
-            this.marker.setLatLng([lat, lng]);
-        if (this.map)
-          this.map.panTo([lat, lng]);
+        if (this.followPosition)
+        {
+            if (this.marker)
+                this.marker.setLatLng([lat, lng]);
+            if (this.map && this.followPosition)
+            this.map.panTo([lat, lng]);
+        }
     }
 }
 

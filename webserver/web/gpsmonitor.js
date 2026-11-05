@@ -1,10 +1,36 @@
+/*!
+ * Copyright (c) 2026 Reiner Pröls
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Author: Reiner Pröls
+ */
+// GPS monitor main page
 
 /*
 * Uncomment line for map you want - and comment out the others !
 */
 
-mapLibre = new MapLibreMap('gps_map')
-// mapOpenStreet = new OpenStreetMap('gps_map')
+// mapLibre = new MapLibreMap('gps_map')
+mapOpenStreet = new OpenStreetMap('gps_map')
 // mapGoogleMap = new GoogleMap('google_map', 10)
 
 // -------------------------------------------------------------------------------
@@ -236,9 +262,9 @@ function doPeriodic()
 						return mode
 					});
 					setValue("summary_nsats", "summary_tr_nsats", gps.su, (val) => val + " / " + (gps.st != null ? gps.st : "---"));
-					setValue("summary_stdlatitude", "summary_tr_stdlatitude", gps.stla, (val) => val.toFixed(2) + " m");
-					setValue("summary_stdlongitude", "summary_tr_stdlongitude", gps.stlo, (val) => val.toFixed(2) + " m");
-					setValue("summary_stdaltitude", "summary_tr_altitude", gps.stal, (val) => val.toFixed(1) + " m");
+					setValue("summary_stdlatitude", "summary_tr_stdlatitude", gps.stla, (val) => val.toFixed(2) + " / " + (2*val).toFixed(2) + " m");
+					setValue("summary_stdlongitude", "summary_tr_stdlongitude", gps.stlo, (val) => val.toFixed(2) + " / " + (2*val).toFixed(2) + " m");
+					setValue("summary_stdaltitude", "summary_tr_altitude", gps.stal, (val) => val.toFixed(1) + " / " + (2*val).toFixed(1) + " m");
 					setValue("summary_date", "summary_tr_date", gps.dt, (val) => {
 						const date = new Date(val);
 

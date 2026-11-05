@@ -1,7 +1,35 @@
+/*!
+ * Copyright (c) 2026 Reiner Pröls
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ *
+ * SPDX-License-Identifier: MIT
+ *
+ * Author: Reiner Pröls
+ */
+
+// GPS satellite view (skyplot)
+
 class GpsView {
 	static get NUMBER_OF_NETWORKS() { return 7; }
 	static get SVG_NAMESPACE() { return "http://www.w3.org/2000/svg"; }
-	static get SVG_SCALEFACTOR() { return 100.0; }
+	static get SVG_SCALEFACTOR() { return 1000.0; }
   	constructor(prefix) {
 	this.prefix = prefix
 	this.satColors = new Map();
@@ -82,38 +110,47 @@ class GpsView {
 		});
 		const save = document.getElementById('svg_save');
 			save.addEventListener('click', (event) => {
+				// 2. Wandle das SVG-Element in einen XML-Textstring um (Original bleibt unverändert)
+				const serializer = new XMLSerializer();
+				let svgString = serializer.serializeToString(svg);
 
-			// 2. Wandle das SVG-Element in einen XML-Textstring um (Original bleibt unverändert)
-			const serializer = new XMLSerializer();
-			let svgString = serializer.serializeToString(svg);
+				const festeBreite = "1000";
+				const festeHoehe = "1000";
+				const licTxt = '<!-- Copyright (c) 2026 Reiner Pröls | SPDX-License-Identifier: MIT -->\n';
+				if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
+					// Namespace, Breite und Höhe ergänzen
+					svgString = svgString.replace(/^<svg/, `<svg xmlns="http://www.w3.org/2000/svg" width="${festeBreite}" height="${festeHoehe}"`);
+				} else {
+					// Breite und Höhe ergänzen
+					svgString = svgString.replace(/^<svg/, `<svg width="${festeBreite}" height="${festeHoehe}"`);
+				}
+				svgString = licTxt + svgString;
 
-			const festeBreite = "1200";
-			const festeHoehe = "1200";
+				// 4. Erzeuge ein Blob-Objekt (eine virtuelle Textdatei im Arbeitsspeicher des Browsers)
+				const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+				const url = URL.createObjectURL(blob);
 
-			if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
-				// Falls der Namensraum fehlt: Füge xmlns, width und height zusammen ein
-				svgString = svgString.replace(/^<svg/, `<svg xmlns="http://w3.org" width="${festeBreite}" height="${festeHoehe}"`);
-			} else {
-				// Falls der Namensraum schon da ist: Ergänze nur width und height im <svg>-Tag
-				svgString = svgString.replace(/^<svg/, `<svg width="${festeBreite}" height="${festeHoehe}"`);
-			}
+				// 5. Erstelle einen unsichtbaren Download-Link und löse ihn automatisch aus
+				const downloadLink = document.createElement("a");
+				downloadLink.href = url;
 
-			// 4. Erzeuge ein Blob-Objekt (eine virtuelle Textdatei im Arbeitsspeicher des Browsers)
-			const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-			const url = URL.createObjectURL(blob);
+				const now = new Date();
+				const year = now.getFullYear();
+				const month = String(now.getMonth() + 1).padStart(2, '0'); // Monate sind 0-basiert
+				const day = String(now.getDate()).padStart(2, '0');
+				const hours = String(now.getHours()).padStart(2, '0');
+				const minutes = String(now.getMinutes()).padStart(2, '0');
+				const seconds = String(now.getSeconds()).padStart(2, '0');
+				const formattedTimestamp = `${year}${month}${day}_${hours}${minutes}${seconds}`;
 
-			// 5. Erstelle einen unsichtbaren Download-Link und löse ihn automatisch aus
-			const downloadLink = document.createElement("a");
-			downloadLink.href = url;
-			downloadLink.download = "satellite_skyplot.svg"; // So heißt deine Datei danach
-			document.body.appendChild(downloadLink);
-			downloadLink.click();
-			
-			// 6. Aufräumen: Link löschen und Speicher freigeben
-			document.body.removeChild(downloadLink);
-			URL.revokeObjectURL(url);
-
-				});
+				downloadLink.download = `gpsmonitor_${formattedTimestamp}.svg`;
+				document.body.appendChild(downloadLink);
+				downloadLink.click();
+				
+				// 6. Aufräumen: Link löschen und Speicher freigeben
+				document.body.removeChild(downloadLink);
+				URL.revokeObjectURL(url);
+			});
 	}
 
 	paintBackground() {
@@ -563,36 +600,3 @@ function getDefaultBlue() {
 
     return `#${r}${g}${b}`;
 }
-/*
-
-function saveSvgFile() {
-    // 1. Hol dir dein SVG-Element (passe die ID 'skyplot' an deine echte SVG-ID an)
-    const svgElement = document.getElementById("skyplot");
-    if (!svgElement) return;
-
-    // 2. Wandle das SVG-Element und alle seine Kinder in einen echten XML-Textstring um
-    const serializer = new XMLSerializer();
-    let svgString = serializer.serializeToString(svgElement);
-
-    // 3. Wichtig für die Datei: Füge den XML-Namensraum hinzu, falls er im HTML fehlt
-    if (!svgString.match(/^<svg[^>]+xmlns="http:\/\/www\.w3\.org\/2000\/svg"/)) {
-        svgString = svgString.replace(/^<svg/, '<svg xmlns="http://w3.org"');
-    }
-
-    // 4. Erzeuge ein Blob-Objekt (eine virtuelle Textdatei im Arbeitsspeicher des Browsers)
-    const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-
-    // 5. Erstelle einen unsichtbaren Download-Link und löse ihn automatisch aus
-    const downloadLink = document.createElement("a");
-    downloadLink.href = url;
-    downloadLink.download = "satellite_skyplot.svg"; // So heißt deine Datei danach
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    
-    // 6. Aufräumen: Link löschen und Speicher freigeben
-    document.body.removeChild(downloadLink);
-    URL.revokeObjectURL(url);
-}
-
-*/
