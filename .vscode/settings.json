@@ -1,6 +1,6 @@
 {
     "remoteHost": "192.168.0.183",
-    "remoteFolder": "/home/psyst/gps",
+    "remoteFolder": "/home/psyst/gpsmonitor",
     "remoteUser": "psyst",
     "remotePass": "psyst",
     "program": "gpsmonitord",
