@@ -88,19 +88,21 @@ func getTimeForJsonFromAtomic(val *atomic.Value) *time.Time {
 
 func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
 	if Data.Gps.GpsSumData.IsReady.Load() {
-		sats := Data.Gps.GetSattelites()
+		used := 0
+		sats := Data.Gps.GetSattelites(&used)
 		total := len(sats)
 		data := webserver.WebDataAll{
 			Gps: webserver.WebDataGps{
-				Longitude:    getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
-				Latitude:     getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
-				Altitude:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
-				Speed:        getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
-				Course:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
-				MagVar:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
-				Mode:         getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
-				Quality:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
-				NumUsedSats:  getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NumSats),
+				Longitude: getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
+				Latitude:  getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
+				Altitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
+				Speed:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
+				Course:    getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
+				MagVar:    getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
+				Mode:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
+				Quality:   getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
+				// NumUsedSats:  getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NumSats),
+				NumUsedSats:  &used,
 				NumTotalSats: &total,
 				StdLongitude: getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLongitude),
 				StdLatitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLatitude),

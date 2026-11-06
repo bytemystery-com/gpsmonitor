@@ -314,161 +314,207 @@ func (ws *WebServer) log(next http.Handler) http.Handler {
 }
 */
 
+func getStringFromFloat[T ~float32 | ~float64](v *T, prec int) string {
+	if v == nil {
+		return "---"
+	}
+	return fmt.Sprintf("%.*f", prec, *v)
+}
+
+func getStringFromInt[T ~int | ~uint | ~int32 | ~uint32 | ~int64 | ~uint64 | ~int16 | ~uint16 | ~int8 | ~uint8](v *T) string {
+	if v == nil {
+		return "---"
+	}
+	return fmt.Sprintf("%d", *v)
+}
+
 func (ws *WebServer) query(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	// q := r.URL.Query().Get("q")
-	// data := ws.callBacks.GetData()
+	q := r.URL.Query().Get("q")
+	data := ws.callBacks.GetData()
 	response := ""
-	/*
-		switch q {
-		case "t":
-			response = fmt.Sprintf("%.1f", data.Humidity.Temperature)
-		case "t2":
-			response = fmt.Sprintf("%.1f", data.Humidity.Temperature2)
-		case "h":
-			response = fmt.Sprintf("%.1f", data.Humidity.Humidity)
-		case "h2":
-			response = fmt.Sprintf("%.1f", data.Humidity.Humidity2)
-		case "d":
-			response = fmt.Sprintf("%.1f", data.Humidity.DewPoint)
-		case "d2":
-			response = fmt.Sprintf("%.1f", data.Humidity.DewPoint2)
-		case "p":
-			response = fmt.Sprintf("%.1f", data.Pressure.Pressure)
-		case "pn":
-			response = fmt.Sprintf("%.1f", data.Pressure.PressureNormal)
-		case "p2":
-			response = fmt.Sprintf("%.1f", data.Pressure.Pressure2)
-		case "pn2":
-			response = fmt.Sprintf("%.1f", data.Pressure.Pressure2Normal)
-		case "l":
-			response = fmt.Sprintf("%.1f", data.Lux.Lux)
-		case "l2":
-			response = fmt.Sprintf("%.1f", data.Lux.Lux2)
-		case "pt1":
-			response = fmt.Sprintf("%.2f", data.Pressure.PressureTrend1)
-		case "pt3":
-			response = fmt.Sprintf("%.2f", data.Pressure.PressureTrend3)
-		case "tp":
-			response = fmt.Sprintf("%.1f", data.Pressure.Temperature)
-		case "tp2":
-			response = fmt.Sprintf("%.1f", data.Pressure.Temperature2)
-		case "v":
-			response = fmt.Sprintf("%s", cfg.WEATHER_STATION_VERSION)
-		case "r_temperature":
-			val, err := raspi.GetTemperature()
-			if err == nil {
-				response = fmt.Sprintf("%.1f", float32(val)/1000.0)
+
+	switch q {
+	case "la":
+		response = getStringFromFloat(data.Gps.Latitude, 6)
+	case "lo":
+		response = getStringFromFloat(data.Gps.Longitude, 6)
+	case "al":
+		response = getStringFromFloat(data.Gps.Altitude, 1)
+	case "sp":
+		response = getStringFromFloat(data.Gps.Speed, 2)
+	case "co":
+		response = getStringFromFloat(data.Gps.Course, 2)
+	case "mv":
+		response = getStringFromFloat(data.Gps.MagVar, 2)
+	case "mo":
+		response = getStringFromInt(data.Gps.Mode)
+	case "qu":
+		response = getStringFromInt(data.Gps.Quality)
+	case "us":
+		response = getStringFromInt(data.Gps.NumUsedSats)
+	case "ts":
+		response = getStringFromInt(data.Gps.NumTotalSats)
+	case "stdla":
+		response = getStringFromFloat(data.Gps.StdLatitude, 2)
+	case "stdlo":
+		response = getStringFromFloat(data.Gps.StdLongitude, 2)
+	case "stdal":
+		response = getStringFromFloat(data.Gps.StdAltitude, 1)
+	case "y", "y2", "m", "d", "wd", "h", "mi", "s", "dstr", "tstr":
+		if data.Gps.DateTime == nil || data.Gps.DateTime.IsZero() {
+			response = "---"
+		} else {
+			dtl := data.Gps.DateTime.Local()
+			switch q {
+			case "y":
+				response = fmt.Sprintf("%d", dtl.Year())
+			case "y2":
+				response = fmt.Sprintf("%d", dtl.Year()-2000)
+			case "m":
+				response = fmt.Sprintf("%d", dtl.Month())
+			case "d":
+				response = fmt.Sprintf("%d", dtl.Day())
+			case "wd":
+				response = fmt.Sprintf("%d", dtl.Weekday())
+			case "h":
+				response = fmt.Sprintf("%d", dtl.Hour())
+			case "mi":
+				response = fmt.Sprintf("%d", dtl.Minute())
+			case "s":
+				response = fmt.Sprintf("%d", dtl.Second())
+			case "dstr":
+				response = dtl.Format("20060102")
+			case "tstr":
+				response = dtl.Format("150405")
 			}
-		case "r_fan":
-			val, err := raspi.GetFanRPM()
-			if err == nil {
-				response = fmt.Sprintf("%d", val)
-			}
-		case "r_cpu_usage":
-			val, err := raspi.GetCpuUsage()
-			if err == nil {
-				response = fmt.Sprintf("%.1f", float32(val)/10.0)
-			}
-		case "r_cpu_frequency":
-			val, err := raspi.GetCPUFrequency()
-			if err == nil {
-				response = fmt.Sprintf("%.0f", float32(val)/1000000.0)
-			}
-		case "r_ram_used":
-			val, _, err := raspi.GetRam()
-			if err == nil {
-				response = fmt.Sprintf("%d", val)
-			}
-		case "r_ram_total":
-			_, val, err := raspi.GetRam()
-			if err == nil {
-				response = fmt.Sprintf("%d", val)
-			}
-		case "r_voltage_5":
-			val, err := raspi.Get5VVoltage()
-			if err == nil {
-				response = fmt.Sprintf("%.2f", float32(val)/1000.0)
-			}
-		case "r_voltage_33":
-			val, err := raspi.Get3V3()
-			if err == nil {
-				response = fmt.Sprintf("%.2f", float32(val)/1000.0)
-			}
-		case "r_throttle":
-			val, err := raspi.GetThrottled()
-			if err == nil {
-				response = fmt.Sprintf("0x%08x", val)
-			}
-		case "r_serial":
-			val, err := raspi.GetSerial()
-			if err == nil {
-				response = fmt.Sprintf("%s", val)
-			}
-		case "r_sd_free":
-			val, _, err := raspi.GetDiskSpace()
-			if err == nil {
-				response = fmt.Sprintf("%d", val)
-			}
-		case "r_sd_total":
-			_, val, err := raspi.GetDiskSpace()
-			if err == nil {
-				response = fmt.Sprintf("%d", val)
-			}
-		case "r_date":
-			now := time.Now()
-			response = now.Format(time.RFC3339)
-		case "r_uptime":
-			val, err := raspi.GetUptime()
-			if err == nil {
-				response = fmt.Sprintf("%d", val)
-			}
-		case "r_version":
-			val, err := raspi.GetSysVersion()
-			if err == nil {
-				response = fmt.Sprintf("%d.%d", (val>>8)&0xFF, val&0xFF)
-			}
-		default:
-			response = ""
 		}
-		if response == "" {
-			http.Error(w, "Invalid or missing query parameter", http.StatusBadRequest)
-			response = "\nMeasure data:\n" +
-				"t		Temperature from humidity sensor (short) in °C\n" +
-				"t2		Temperature from humidity sensor (long) in °C\n" +
-				"h		Humidity (short) in %\n" +
-				"h2		Humidity (long) in %\n" +
-				"d		Dew point (short) in °C\n" +
-				"d2		Dew point (long) in °C\n" +
-				"p		Pressure (short) in hPa\n" +
-				"p2		Pressure (long) in hPa\n" +
-				"pn		Pressure normal (short) in hPa\n" +
-				"pn2		Pressure normal (long) in hPa\n" +
-				"l		Ambient light (short) in Lu\n" +
-				"l2		Ambient light (long) in Lu\n" +
-				"pt1		Pressurer trend - 1 hour\n" +
-				"pt3		Pressurer trend - 3 hours\n" +
-				"\n" +
-				"Raspberry data:\n" +
-				"r_temperature		Raspberry temperature\n" +
-				"r_fan			Raspberry fan in rpm\n" +
-				"r_cpu_usage		Raspberry CPU usage in %\n" +
-				"r_cpu_frquency		Raspberry CPU frequency in MHz\n" +
-				"r_ram_used		Raspberry used RAM in kB\n" +
-				"r_ram_total		Raspberry Total RAM in kB\n" +
-				"r_voltage_5		Raspberry 5 Volt monitoring in V\n" +
-				"r_voltage_33		Raspberry 3.3 Volt monitoring in V\n" +
-				"r_throttle		Raspberry throttle\n" +
-				"r_serial		Raspberry serial number\n" +
-				"r_sd_free		Raspberry free space of SD card in kB\n" +
-				"r_sd_total		Raspberry total space of SD card in kB\n" +
-				"r_date			Raspberry system date / time in  RFC3339\n" +
-				"r_uptime		Raspberry system uptime in sec\n" +
-				"r_version		Raspberry system version\n"
-			_, _ = w.Write([]byte(response))
-			return
+	case "v":
+		response = cfg.GPS_MONITOR_VERSION
+
+	case "r_temperature":
+		val, err := raspi.GetTemperature()
+		if err == nil {
+			response = fmt.Sprintf("%.1f", float32(val)/1000.0)
 		}
-	*/
+	case "r_fan":
+		val, err := raspi.GetFanRPM()
+		if err == nil {
+			response = fmt.Sprintf("%d", val)
+		}
+	case "r_cpu_usage":
+		val, err := raspi.GetCpuUsage()
+		if err == nil {
+			response = fmt.Sprintf("%.1f", float32(val)/10.0)
+		}
+	case "r_cpu_frequency":
+		val, err := raspi.GetCPUFrequency()
+		if err == nil {
+			response = fmt.Sprintf("%.0f", float32(val)/1000000.0)
+		}
+	case "r_ram_used":
+		val, _, err := raspi.GetRam()
+		if err == nil {
+			response = fmt.Sprintf("%d", val)
+		}
+	case "r_ram_total":
+		_, val, err := raspi.GetRam()
+		if err == nil {
+			response = fmt.Sprintf("%d", val)
+		}
+	case "r_voltage_5":
+		val, err := raspi.Get5VVoltage()
+		if err == nil {
+			response = fmt.Sprintf("%.2f", float32(val)/1000.0)
+		}
+	case "r_voltage_33":
+		val, err := raspi.Get3V3()
+		if err == nil {
+			response = fmt.Sprintf("%.2f", float32(val)/1000.0)
+		}
+	case "r_throttle":
+		val, err := raspi.GetThrottled()
+		if err == nil {
+			response = fmt.Sprintf("0x%08x", val)
+		}
+	case "r_serial":
+		val, err := raspi.GetSerial()
+		if err == nil {
+			response = fmt.Sprintf("%s", val)
+		}
+	case "r_sd_free":
+		val, _, err := raspi.GetDiskSpace()
+		if err == nil {
+			response = fmt.Sprintf("%d", val)
+		}
+	case "r_sd_total":
+		_, val, err := raspi.GetDiskSpace()
+		if err == nil {
+			response = fmt.Sprintf("%d", val)
+		}
+	case "r_date":
+		now := time.Now()
+		response = now.Format(time.RFC3339)
+	case "r_uptime":
+		val, err := raspi.GetUptime()
+		if err == nil {
+			response = fmt.Sprintf("%d", val)
+		}
+	case "r_version":
+		val, err := raspi.GetSysVersion()
+		if err == nil {
+			response = fmt.Sprintf("%d.%d", (val>>8)&0xFF, val&0xFF)
+		}
+	default:
+		response = ""
+	}
+	if response == "" {
+		http.Error(w, "Invalid or missing query parameter", http.StatusBadRequest)
+		response = "\nMeasure data:\n" +
+			"la                 Latitude in °\n" +
+			"lo                 Longitude in °\n" +
+			"al                 Altitude in m\n" +
+			"sp                 Speed in m/s\n" +
+			"co                 Course in °\n" +
+			"mv                 Magnetic variation in °\n" +
+			"mo                 GPS Mode (0=NoFix, 1=2D, 2=3D)\n" +
+			"qu                 GPS Quality (0=NotFix, 1=NormalFix, 2=DiffFix, 3=PPSFix, 4=RTKFix, 5=RTKFloat, 6=Estimated, 7=Manual, 8=Simul)\n" +
+			"us                 Used satllites\n" +
+			"ut                 Total seen satllites\n" +
+			"stdla              Standard deviation of latitude in m\n" +
+			"stdlo              Standard deviation of longitude in m\n" +
+			"stdal              Standard deviation of altitude in m\n" +
+			"y                  Year (4 digits)\n" +
+			"y2                 Year (2 digits)\n" +
+			"m                  Month (1-12)\n" +
+			"d                  Day of month (1-31)\n" +
+			"wd                 Weekday (0=Sunday, 6=Saturday)\n" +
+			"h                  Hour (0-23)\n" +
+			"mi                 Minute (0-59)\n" +
+			"s                  Second (0-59)\n" +
+			"dstr               Date (YYYYMMDD)\n" +
+			"tstr               Time (HHMMSS)\n" +
+			"v                  Version of GPS Monitor\n" +
+			"\n" +
+			"Raspberry data:\n" +
+			"r_temperature      Raspberry temperature\n" +
+			"r_fan              Raspberry fan in rpm\n" +
+			"r_cpu_usage        Raspberry CPU usage in %\n" +
+			"r_cpu_frquency     Raspberry CPU frequency in MHz\n" +
+			"r_ram_used         Raspberry used RAM in kB\n" +
+			"r_ram_total        Raspberry Total RAM in kB\n" +
+			"r_voltage_5        Raspberry 5 Volt monitoring in V\n" +
+			"r_voltage_33       Raspberry 3.3 Volt monitoring in V\n" +
+			"r_throttle         Raspberry throttle\n" +
+			"r_serial           Raspberry serial number\n" +
+			"r_sd_free          Raspberry free space of SD card in kB\n" +
+			"r_sd_total         Raspberry total space of SD card in kB\n" +
+			"r_date             Raspberry system date / time in  RFC3339\n" +
+			"r_uptime           Raspberry system uptime in sec\n" +
+			"r_version          Raspberry system version\n"
+		_, _ = w.Write([]byte(response))
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(response))
 }

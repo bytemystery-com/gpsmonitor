@@ -1836,14 +1836,21 @@ begin:
 	}
 }
 
-func (gps *Gps) GetSattelites() []SatInfo {
+func (gps *Gps) GetSattelites(used *int) []SatInfo {
 	gps.satInfoLock.RLock()
 	defer gps.satInfoLock.RUnlock()
 
 	result := make([]SatInfo, 0, len(gps.satMap))
+	u := 0
 	for _, item := range gps.satMap {
 		item.Strength = maps.Clone(item.Strength)
+		if item.Used {
+			u++
+		}
 		result = append(result, item)
+	}
+	if used != nil {
+		*used = u
 	}
 	return result
 }
