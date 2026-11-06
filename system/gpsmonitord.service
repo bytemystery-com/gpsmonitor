@@ -1,0 +1,12 @@
+[Unit]
+Description=GPS Monitor
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/gpsmonitord.env
+ExecStart=/usr/local/bin/gpsmonitord
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
