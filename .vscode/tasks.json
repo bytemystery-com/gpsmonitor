@@ -11,7 +11,7 @@
                 "${config:remotePass}",
                 "ssh",
                 "${config:remoteUser}@${config:remoteHost}",
-                "cd ${config:remoteFolder} && go build -gcflags=\"all=-N -l\" -o ${config:program} ./${config:programFolder} && /home/${config:remoteUser}/go/bin/dlv --listen=:2345 --headless --api-version=2 --accept-multiclient exec ${config:remoteFolder}/${config:program} --"
+                "cd ${config:remoteFolder} && go build -gcflags=\"all=-N -l\" -o ${config:program} ./${config:programFolder} && /home/${config:remoteUser}/go/bin/dlv --listen=:2345 --headless --api-version=2 --accept-multiclient exec ${config:remoteFolder}/${config:program} -- -d"
             ],
             "isBackground": true,
             "problemMatcher": {

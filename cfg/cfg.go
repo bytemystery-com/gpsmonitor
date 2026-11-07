@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	GPS_MONITOR_VERSION = "1.1"
+	GPS_MONITOR_VERSION = "1.2"
 
 	SECTION_GENERAL             = "general"
 	KEY_GENERAL_NAME            = "Name"

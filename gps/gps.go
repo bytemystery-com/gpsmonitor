@@ -1644,10 +1644,14 @@ func (gps *Gps) parseUBXVer(payLoad []byte) (*UBXVer, error) {
 			break
 		}
 	}
+
 	switch {
 	case strings.Contains(mon.Model, "M9"):
 		mon.UBXModel = UBX_M9
 	case strings.Contains(mon.Model, "M10"):
+		mon.UBXModel = UBX_M10
+	case strings.Contains(mon.SwVersion, "SPG 5.10") &&
+		mon.HwVersion == "000A0000":
 		mon.UBXModel = UBX_M10
 	default:
 		mon.UBXModel = UBX_UNKNOWN
