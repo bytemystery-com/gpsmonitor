@@ -31,15 +31,16 @@ class GpsView {
 	static get SVG_NAMESPACE() { return "http://www.w3.org/2000/svg"; }
 	static get SVG_SCALEFACTOR() { return 1000.0; }
   	constructor(prefix) {
-	this.prefix = prefix
+	this.prefix = prefix;
 	this.satColors = new Map();
 	this.showMap = new Map();
+	this.checkBoxMap = new Map();
   }
  
 	doInit() {
 		let svg = document.getElementById(this.prefix + "svg");
 		if (svg.style.vectorEffect === undefined) {
-			alert("no vector effect")
+			alert("no vector effect");
 		}
 		svg.setAttribute("viewBox", `${-1.15*GpsView.SVG_SCALEFACTOR} ${-1.15*GpsView.SVG_SCALEFACTOR} ${2.3*GpsView.SVG_SCALEFACTOR} ${2.3*GpsView.SVG_SCALEFACTOR}`);
 		let back = document.getElementById(this.prefix + "back");
@@ -54,46 +55,46 @@ class GpsView {
 		}
 
 		for (let i = 0; i < GpsView.NUMBER_OF_NETWORKS; i++) {
-			this.satColors.set(i, getCustomCssProperty(`--gps-sat_network_${i}_color`))
+			this.satColors.set(i, getCustomCssProperty(`--gps-sat_network_${i}_color`));
 			if (!this.showMap.has(i)) {
-				this.showMap.set(i, true)
+				this.showMap.set(i, true);
 			}
 		}
 
-		this.defaultBlue = getDefaultBlue()
+		this.defaultBlue = getDefaultBlue();
 
 		this.tooltip = document.getElementById("sat-tooltip");
-		this.satMinStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_min_radius`))*GpsView.SVG_SCALEFACTOR
-		this.satMaxStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_max_radius`))*GpsView.SVG_SCALEFACTOR
+		this.satMinStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_min_radius`))*GpsView.SVG_SCALEFACTOR;
+		this.satMaxStrengthRadius = Number(getCustomCssProperty(`--gps-sat_strength_max_radius`))*GpsView.SVG_SCALEFACTOR;
 		this.radiusDelta = this.satMaxStrengthRadius;
-		this.satUsedColor = getCustomCssProperty(`--gps-sat_used_color`)
-		this.satUsedStrokeWidth = getCustomCssProperty(`--gps-sat_used_stroke_width`)
+		this.satUsedColor = getCustomCssProperty(`--gps-sat_used_color`);
+		this.satUsedStrokeWidth = getCustomCssProperty(`--gps-sat_used_stroke_width`);
 		this.fontSize = Number(getCustomCssProperty('--gps-axis_text_font_size'))*GpsView.SVG_SCALEFACTOR;
 
-
-		this.paintBackground()
-		this.coordinateSystem()
+		this.paintBackground();
+		this.coordinateSystem();
 
 		document.querySelectorAll('.gps_network_toggle').forEach(checkbox => {
 			const netWorkId = Number(checkbox.getAttribute('data-network'));
 			checkbox.checked = this.showMap.get(netWorkId) ? true : false;
+			this.checkBoxMap.set(netWorkId, checkbox);
 			checkbox.addEventListener('change', (event) => {
 				const netWorkId = Number(event.target.getAttribute('data-network'));
 				const g = document.getElementById(`svg_${this.prefix}network_${netWorkId}`);
-				this.showMap.set(netWorkId, Boolean(event.target.checked))
+				this.showMap.set(netWorkId, Boolean(event.target.checked));
 				if (g) {
 					 g.style.display = event.target.checked ? "" : "none";
 				}
 				localStorage.setItem('gps_sat_show', JSON.stringify(Array.from(this.showMap.entries())));
 			});
 			const itemContainer = checkbox.closest('.sat_checkbox-item');
-			if (itemContainer){
-				itemContainer.style.backgroundColor = this.satColors.get(netWorkId)
+			if (itemContainer) {
+				itemContainer.style.backgroundColor = this.satColors.get(netWorkId);
 			}
 		});
 		
 		document.querySelectorAll('.gps_sat_used').forEach(selectbox => {
-			selectbox.value = this.showMap.get(-1)
+			selectbox.value = this.showMap.get(-1);
 			selectbox.addEventListener('change', (event) => {
 				const showUsed = Number(event.target.value);
 				this.showMap.set(-1, showUsed);
@@ -101,10 +102,10 @@ class GpsView {
 				document.querySelectorAll('.svg_sat_used, .svg_sat_not_used').forEach(circle => {
 					const isUsed = circle.classList.contains('svg_sat_used')
 					if (isUsed) {
-						circle.style.visibility = (showUsed == 1 || showUsed == 2) ? "visible" : "hidden"
+						circle.style.visibility = (showUsed == 1 || showUsed == 2) ? "visible" : "hidden";
 					} else {
-						circle.style.visibility = (showUsed == 1 || showUsed == 0) ? "visible" : "hidden"
-				}
+						circle.style.visibility = (showUsed == 1 || showUsed == 0) ? "visible" : "hidden";
+					}
 				});
 			});
 		});
@@ -196,8 +197,8 @@ class GpsView {
 		lineY.setAttribute("vector-effect", "non-scaling-stroke");
 		fragment.appendChild(lineY);
 
-		let x1 = baseRadius * Math.cos((Math.PI/180)*45)
-		let y1 = baseRadius * Math.sin((Math.PI/180)*45)
+		let x1 = baseRadius * Math.cos((Math.PI/180)*45);
+		let y1 = baseRadius * Math.sin((Math.PI/180)*45);
 		const color2 = getCustomCssProperty('--gps-help_axis_color');
 		const stroke_width2 = getCustomCssProperty('--gps-help_axis_stroke_width');
 		const stroke_dash = removeQuotes(getCustomCssProperty('--gps-help_axis_dash'));
@@ -259,7 +260,7 @@ class GpsView {
 		// 3. Styling & Inhalt
 		let colorText = getCustomCssProperty('--gps-axis_text_color');
 		if (colorText == "auto") {
-			colorText = this.defaultBlue
+			colorText = this.defaultBlue;
 		}
 		const fontFamily = getCustomCssProperty('--gps-axis_text_font_family');
 		const fontWeight = getCustomCssProperty('--gps-axis_text_font_weight');
@@ -309,7 +310,7 @@ class GpsView {
 	    labelS.setAttribute("y", baseRadius + textSize.height + this.radiusDelta);
 	    fragment.appendChild(labelS);
 
-		lines.append(fragment)
+		lines.append(fragment);
 	}
 
 	doUpdate(sats) {
@@ -324,53 +325,59 @@ class GpsView {
 		const maxStrengthRange = 50
 		const baseRadius = 1.0 * GpsView.SVG_SCALEFACTOR;
 		let g
+		const satNumberMap = new Map();
 		for (let i = 0; i < GpsView.NUMBER_OF_NETWORKS; i++) {
 		    g = document.createElementNS(GpsView.SVG_NAMESPACE, "g");
 			g.id = `svg_${this.prefix}network_${i}`;
-			g.style.display = this.showMap.get(i) ? "" : "none"
-			networks.set(i, g)
-			fragment.prepend(g)
+			g.style.display = this.showMap.get(i) ? "" : "none";
+			networks.set(i, g);
+			fragment.prepend(g);
+			satNumberMap.set(i, 0);
 		}
 		const showUsed = this.showMap.get(-1)
+
 		for (const sat of sats) {
-			let networkId = Number(sat.nw)
-			let networkName = this.getNetworkName(networkId)
+			let networkId = Number(sat.nw);
+			let networkName = this.getNetworkName(networkId);
 			if (networkId >= GpsView.NUMBER_OF_NETWORKS) {
-				networkId = 0
+				networkId = 0;
 			}
 			if (networks.has(networkId)) {
-				g = networks.get(networkId)
+				g = networks.get(networkId);
 			} else {
 			    g = document.createElementNS(GpsView.SVG_NAMESPACE, "g");
 				g.id = `svg_${this.prefix}network_${i}`;
 				networks.set(networkId, g);
-				fragment.append(g)
-				alert("XXX")
+				fragment.append(g);
+				alert("XXX");
 			}
+			if (satNumberMap.has(networkId)) {
+				satNumberMap.set(networkId, satNumberMap.get(networkId) + 1);
+			}
+			
 			// add circle data to g
-
-			let r = baseRadius*(1.0 - 1.0 * sat.el/90.0)
-			let x = r*Math.sin((Math.PI/180.0)*sat.az)
-			let y = -r*Math.cos((Math.PI/180.0)*sat.az)
+			let r = baseRadius*(1.0 - 1.0 * sat.el/90.0);
+			let x = r*Math.sin((Math.PI/180.0)*sat.az);
+			let y = -r*Math.cos((Math.PI/180.0)*sat.az);
 			
 			const circle = document.createElementNS(GpsView.SVG_NAMESPACE, "circle");
 			circle.setAttribute("cx", x);
 			circle.setAttribute("cy", y);
 			circle.setAttribute("fill", this.satColors.get(networkId));
-			let maxStrength = Number(0)
+			let maxStrength = Number(0);
 			for (const strength of Object.values(sat.st)) {
 				if (strength != null) {
-					const n = Number(strength)
+					const n = Number(strength);
 					if (maxStrength == 0 && n > maxStrength) { 
-						maxStrength = n
+						maxStrength = n;
 					}
 				}
 			}
 			if (maxStrength > maxStrengthRange) {
-				maxStrength = maxStrengthRange
+				maxStrength = maxStrengthRange;
 			}
 			if (maxStrength < minStrengthRange) {
-				maxStrength = minStrengthRange
+				maxStrength = minStrengthRange;
 			}
 			const f = (maxStrength - minStrengthRange)/(maxStrengthRange - minStrengthRange);
 			r = this.satMinStrengthRadius + f *(this.satMaxStrengthRadius - this.satMinStrengthRadius)
@@ -411,7 +418,7 @@ class GpsView {
 				if (!first) {
 					tt += `</span>`;
 				} else {
-					tt +=`<span class="sat_tooltip_grid_key">Strength:</span><span>---</span>`
+					tt +=`<span class="sat_tooltip_grid_key">Strength:</span><span>---</span>`;
 				}
 				tt +=`<span class="sat_tooltip_grid_key">Azimuth:</span><span>${sat.az} °</span>` +
 				`<span class="sat_tooltip_grid_key">Elevation:</span><span>${sat.el} °</span>` +
@@ -462,9 +469,17 @@ class GpsView {
 				circle.tooltipOpen = false;
 			});
 
-			g.append(circle)
+			g.append(circle);
 		}
-		data.append(fragment)
+		data.append(fragment);
+		for (const [netWorkId, value] of satNumberMap) {
+			if (this.checkBoxMap.has(netWorkId)) {
+				const ctrl = this.checkBoxMap.get(netWorkId)
+				if (ctrl.nextSibling) {
+            		ctrl.nextSibling.textContent = `${this.getNetworkName(netWorkId)} (${satNumberMap.get(netWorkId)})`;
+				}
+			}
+		}
 	}
 
 	getSignalName(signalId) {
@@ -521,15 +536,15 @@ class GpsView {
 	getNetworkName(networkId) {
 		switch (networkId) {
 		case 0:
-			return "Unknown"
+			return "Other"
 		case 1:
 			return "GPS"
 		case 2:
 			return "GLONASS"
 		case 3:
-			return "Galileo"
-		case 4:
 			return "BeiDou"
+		case 4:
+			return "Galileo"
 		case 5:
 			return "QZSS"
 		case 6:

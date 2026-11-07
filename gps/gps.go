@@ -1524,60 +1524,56 @@ func (gps *Gps) ubxChecksum(data []byte) (byte, byte) {
 	return ckA, ckB
 }
 
-func (gps *Gps) SendUBXConfig(layer byte, key uint32, value uint32) error {
-	// 1. Bestimmen, wie groß der Wert ist, basierend auf der u-blox Key-ID.
-	// Die oberen Bits der Key-ID verraten die Datengröße (0x01 = 1-bit, 0x02 = 1-byte, 0x03 = 2-byte, 0x05 = 4-byte)
+type UBXConfig struct {
+	Key   uint32
+	Value uint32
+}
 
-	// Korrektur: Mit 0x0F maskieren, um das komplette obere Hex-Nibble zu bekommen
-	sizeGroup := (key >> 28) & 0x0F
-	var valueSize int
-
-	switch sizeGroup {
-	case 0x01, 0x02: // 1-Bit oder 1-Byte
-		valueSize = 1
-	case 0x03: // 2-Byte
-		valueSize = 2
-	case 0x04: // 4-Byte (HIER landet jetzt deine Baudrate 0x40520001!)
-		valueSize = 4
-	case 0x05: // 8-Byte
-		valueSize = 8
-	default:
-		valueSize = 1
+func (gps *Gps) UBXSendConfig(layer byte, configs ...UBXConfig) error {
+	payload := []byte{
+		0x00,  // Version
+		layer, // Layer
+		0x00,
+		0x00,
 	}
 
-	// 2. Payload vorbereiten (8 Bytes Header + dynamische Wertgröße)
-	payloadSize := 8 + valueSize
-	payload := make([]byte, payloadSize)
+	for _, cfg := range configs {
+		sizeGroup := (cfg.Key >> 28) & 0x0F
 
-	payload[0] = 0x00            // Version
-	payload[1] = layer           // 0x01 = RAM, 0x07 = Flash
-	payload[2] = 0x00            // Reserviert
-	payload[3] = 0x00            // Reserviert
-	payload[4] = byte(key)       // Key Byte 0 (Little Endian)
-	payload[5] = byte(key >> 8)  // Key Byte 1
-	payload[6] = byte(key >> 16) // Key Byte 2
-	payload[7] = byte(key >> 24) // Key Byte 3
+		var valueSize int
+		switch sizeGroup {
+		case 0x01, 0x02:
+			valueSize = 1
+		case 0x03:
+			valueSize = 2
+		case 0x04:
+			valueSize = 4
+		case 0x05:
+			valueSize = 8
+		default:
+			return fmt.Errorf("unknown UBX config key size: %08X", cfg.Key)
+		}
 
-	// Wert in Little Endian in die Payload schreiben
-	for i := 0; i < valueSize; i++ {
-		payload[8+i] = byte(value >> (8 * i))
+		for i := 0; i < 4; i++ {
+			payload = append(payload, byte(cfg.Key>>(8*i)))
+		}
+
+		for i := 0; i < valueSize; i++ {
+			payload = append(payload, byte(cfg.Value>>(8*i)))
+		}
 	}
 
-	// 3. Header vorbereiten (6 Bytes)
 	header := []byte{
-		0xB5, 0x62, // Sync Chars
-		0x06, 0x8A, // Class (0x06) & ID (0x8A) für UBX-CFG-VALSET
-		byte(len(payload)), byte(len(payload) >> 8), // Dynamische Länge der Payload
+		0xB5, 0x62,
+		0x06, 0x8A,
+		byte(len(payload)),
+		byte(len(payload) >> 8),
 	}
 
-	// 4. Komplettes Paket zusammensetzen
 	packet := append(header, payload...)
-
-	// Prüfsumme berechnen (ohne die ersten zwei Sync-Chars)
 	cka, ckb := gps.ubxChecksum(packet[2:])
 	packet = append(packet, cka, ckb)
 
-	// 5. Paket abschicken
 	_, err := gps.writer.Write(packet)
 	return err
 }
@@ -1644,19 +1640,56 @@ func (gps *Gps) parseUBXVer(payLoad []byte) (*UBXVer, error) {
 			break
 		}
 	}
+	swUpper := strings.ToUpper(mon.SwVersion)
+	hwUpper := strings.ToUpper(mon.HwVersion)
+	modUpper := strings.ToUpper(mon.Model)
 
 	switch {
-	case strings.Contains(mon.Model, "M9"):
+	case strings.Contains(modUpper, "M9"):
 		mon.UBXModel = UBX_M9
-	case strings.Contains(mon.Model, "M10"):
+
+	case strings.Contains(modUpper, "M10"):
 		mon.UBXModel = UBX_M10
-	case strings.Contains(mon.SwVersion, "SPG 5.10") &&
-		mon.HwVersion == "000A0000":
+
+	// Erkennung über die offizielle u-blox Hardware-Generations-ID für M10
+	case hwUpper == "00100000":
 		mon.UBXModel = UBX_M10
+
+	// Erweiterter Fallback für ältere/spezifische M10 ROM-Revisionen
+	case hwUpper == "000A0000" && (strings.Contains(swUpper, "SPG 5.10") || strings.Contains(swUpper, "SPG 5.1")):
+		mon.UBXModel = UBX_M10
+
 	default:
 		mon.UBXModel = UBX_UNKNOWN
 	}
 	return mon, nil
+}
+
+func (gps *Gps) sendUBXCfg() {
+	// gps.SendUBXConfig(0x01, 0x40520001, 115200)
+	gps.UBXSendConfig(0x01, UBXConfig{Key: 0x20930001, Value: 41}, // NMEA 4.11
+		// UBXConfig{Key: 0x40520001, Value: 115200},
+		UBXConfig{Key: 0x20930007, Value: 1}, // Extended einschalten
+		UBXConfig{Key: 0x209100d4, Value: 1}, // GST einschalten
+	)
+
+	switch gps.ubxVersion.UBXModel {
+	case UBX_M9:
+		gps.UBXSendConfig(0x01, UBXConfig{Key: 0x209100b7, Value: 1}, // VTG einschalten
+			// UBXConfig{Key: 0x209100b2, Value: 1}, // GNS einschalten ???
+			UBXConfig{Key: 0x20910087, Value: 7}, // TXT einschalten
+		)
+	case UBX_M10:
+		// Switch on GLONASS !!
+		gps.UBXSendConfig(0x01,
+			UBXConfig{Key: 0x209100d4, Value: 1}, // VTG einschalten
+			UBXConfig{Key: 0x10310022, Value: 1}, // BDS ein
+			UBXConfig{Key: 0x1031000d, Value: 0}, // BDS_B1_ENA aus
+			UBXConfig{Key: 0x1031000f, Value: 1}, // BDS_B1C_ENA ein
+			UBXConfig{Key: 0x10310018, Value: 1}, // GLO_L1_ENA ein
+			UBXConfig{Key: 0x10310025, Value: 1}, // GLO_ENA ein
+		)
+	}
 }
 
 func (gps *Gps) doSatMapCleanup() {
@@ -1673,24 +1706,6 @@ func (gps *Gps) doSatMapCleanup() {
 			}
 		}
 		gps.satInfoLock.Unlock()
-	}
-}
-
-func (gps *Gps) sendUBXCfg() {
-	// gps.SendUBXConfig(0x01, 0x40520001, 115200)
-	gps.SendUBXConfig(0x01, 0x20930001, 41) // NMEA 4.11
-	gps.SendUBXConfig(0x01, 0x20930007, 1)  // Extended einschalten
-	gps.SendUBXConfig(0x01, 0x209100d4, 1)  // GST einschalten
-	gps.SendUBXConfig(0x01, 0x20910087, 7)  // TXT einschalten
-
-	switch gps.ubxVersion.UBXModel {
-	case UBX_M9:
-		// gps.SendUBXConfig(0x01, 0x209100b2, 1)  // GNS einschalten ???
-		gps.SendUBXConfig(0x01, 0x209100b7, 1) // VTG einschalten
-
-	case UBX_M10:
-		// gps.SendUBXConfig(0x01, 0x209100b6, 1) // GNS einschalten ???
-		gps.SendUBXConfig(0x01, 0x209100b1, 1) // VTG einschalten
 	}
 }
 
@@ -1807,7 +1822,7 @@ begin:
 					gps.SendNotify(err)
 					return
 				}
-				// log.Printf("Class=%02X Message=%02X Length=%d Payload=% X", classId, messageId, l, bufPayload)
+				log.Printf("Class=%02X Message=%02X Length=%d Payload=% X", classId, messageId, l, bufPayload)
 				// log.Printf("Payload %v", bufPayload)
 				bufCrc := make([]byte, 2)
 				_, err = io.ReadFull(reader, bufCrc)
