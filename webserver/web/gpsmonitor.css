@@ -166,6 +166,12 @@ Trebuchet MS Sans-serif
 	width: 42%;
     white-space: nowrap;
 }
+
+.status_table td
+{
+    line-height: 1.5;
+}
+
 /*---*/
 
 /* SVG */
