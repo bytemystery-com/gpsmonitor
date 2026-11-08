@@ -10,6 +10,7 @@ I run it on a Raspberry Pi 5 using a serial interface.
 The project includes an NMEA parser, which has been tested with a u-blox NEO-M9N receiver.
 
 The main page displays the most important GPS information. There is also a satellite view (skyplot), which is generated dynamically as an SVG using JavaScript. The SVG can also be exported.
+When hovering over a satellite, a tooltip displays additional information.  
 
 Additionally, a small map displays the current position.
 
@@ -34,6 +35,7 @@ License: MIT
 
 ![alt text](/screenshots/main.jpg "Main page")
 ![alt text](/screenshots/sat.jpg "Sky view")
+![alt text](/screenshots/tooltip.jpg "Tooltip")
 
 ## Links
 
