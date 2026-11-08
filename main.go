@@ -172,6 +172,7 @@ func main() {
 	port, err := serial.Open(Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV), mode)
 	if err != nil {
 		log.Printf("open port failed %v", err)
+		return
 	}
 	g, err := gps.NewGps(port, port, func() {
 		port.ResetOutputBuffer()

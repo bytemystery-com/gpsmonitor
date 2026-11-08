@@ -131,6 +131,7 @@ const (
 	GALILEO_E5B
 
 	BEIDOU_B1I
+	BEIDOU_B1C
 	BEIDOU_B2I
 	BEIDOU_B2A
 
@@ -169,6 +170,8 @@ func (signalId SignalId) String() string {
 		return "Galileo E5 a"
 	case GALILEO_E5B:
 		return "Galileo E5 b"
+	case BEIDOU_B1C:
+		return "BeiDou B1 C"
 	case BEIDOU_B1I:
 		return "BeiDou B1 I"
 	case BEIDOU_B2I:
@@ -223,6 +226,8 @@ func (signalId SignalId) MarshalText() (text []byte, err error) {
 		return []byte("GALILEO_E5B"), nil
 	case BEIDOU_B1I:
 		return []byte("BEIDOU_B1I"), nil
+	case BEIDOU_B1C:
+		return []byte("BEIDOU_B1C"), nil
 	case BEIDOU_B2I:
 		return []byte("BEIDOU_B2I"), nil
 	case BEIDOU_B2A:
@@ -276,6 +281,8 @@ func (signalId *SignalId) UnmarshalText(text []byte) error {
 		*signalId = GALILEO_E5B
 	case "BEIDOU_B1I":
 		*signalId = BEIDOU_B1I
+	case "BEIDOU_B1C":
+		*signalId = BEIDOU_B1C
 	case "BEIDOU_B2I":
 		*signalId = BEIDOU_B2I
 	case "BEIDOU_B2A":
@@ -384,6 +391,8 @@ func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
 		switch gpsNetwork {
 		case NetworkGLONASS:
 			return GLONASS_L2OF
+		case NetworkBeiDou:
+			return BEIDOU_B1C
 		}
 	case 4:
 		switch gpsNetwork {
@@ -1616,6 +1625,53 @@ func (v *UBXVer) Print() {
 	log.Printf("  Extensions: %v", v.Extensions)
 }
 
+// Never worked !!! - binary rubbish
+func (gps *Gps) parseUBXNavSig(buf []byte) {
+	n := buf[5]
+	for i := range n {
+		offset := 8 + i*16
+		signalId := buf[2+offset]
+		log.Printf("%d %d %d", buf[offset], signalId, buf[1+offset])
+		if buf[offset] == 3 && signalId == 6 { // BeiDou - B1C
+			satId := buf[1+offset]
+			strength := buf[6+offset]
+			key := satKey{
+				network: NetworkBeiDou,
+				id:      int(satId),
+			}
+			gps.satInfoLock.Lock()
+			entry, ok := gps.satMap[key]
+			if ok {
+				entry.Strength[GetSignalId(int(signalId), NetworkBeiDou)] = StrengthValue{Val: float32(strength)}
+			}
+			gps.satInfoLock.Unlock()
+		}
+	}
+}
+
+// Never worked !!! - binary rubbish
+func (gps *Gps) parseUBXNavSat(buf []byte) {
+	n := buf[5]
+	for i := range n {
+		offset := 8 + i*12
+		log.Printf("%d", buf[offset])
+		if buf[offset] == 3 { // BeiDou
+			satId := buf[1+offset]
+			strength := buf[2+offset]
+			key := satKey{
+				network: NetworkBeiDou,
+				id:      int(satId),
+			}
+			gps.satInfoLock.Lock()
+			entry, ok := gps.satMap[key]
+			if ok {
+				entry.Strength[GetSignalId(int(BEIDOU_B1C), NetworkBeiDou)] = StrengthValue{Val: float32(strength)}
+			}
+			gps.satInfoLock.Unlock()
+		}
+	}
+}
+
 func (gps *Gps) parseUBXVer(payLoad []byte) (*UBXVer, error) {
 	if len(payLoad) < 40 || (len(payLoad)-40)%30 != 0 {
 		return nil, fmt.Errorf("invalid MON-VER payload length: %d", len(payLoad))
@@ -1667,7 +1723,7 @@ func (gps *Gps) parseUBXVer(payLoad []byte) (*UBXVer, error) {
 
 func (gps *Gps) sendUBXCfg() {
 	// gps.SendUBXConfig(0x01, 0x40520001, 115200)
-	gps.UBXSendConfig(0x01, UBXConfig{Key: 0x20930001, Value: 41}, // NMEA 4.11
+	gps.UBXSendConfig(0x01,
 		// UBXConfig{Key: 0x40520001, Value: 115200},
 		UBXConfig{Key: 0x20930007, Value: 1}, // Extended einschalten
 		UBXConfig{Key: 0x209100d4, Value: 1}, // GST einschalten
@@ -1675,19 +1731,24 @@ func (gps *Gps) sendUBXCfg() {
 
 	switch gps.ubxVersion.UBXModel {
 	case UBX_M9:
-		gps.UBXSendConfig(0x01, UBXConfig{Key: 0x209100b7, Value: 1}, // VTG einschalten
+		gps.UBXSendConfig(0x01,
+			UBXConfig{Key: 0x20930001, Value: 41}, // NMEA 4.10
+			UBXConfig{Key: 0x209100b7, Value: 1},  // VTG einschalten
 			// UBXConfig{Key: 0x209100b2, Value: 1}, // GNS einschalten ???
 			UBXConfig{Key: 0x20910087, Value: 7}, // TXT einschalten
 		)
 	case UBX_M10:
 		// Switch on GLONASS !!
 		gps.UBXSendConfig(0x01,
-			UBXConfig{Key: 0x209100d4, Value: 1}, // VTG einschalten
+			UBXConfig{Key: 0x20930001, Value: 42}, // NMEA 4.11
+			// UBXConfig{Key: 0x209100d4, Value: 1}, // VTG einschalten
 			UBXConfig{Key: 0x10310022, Value: 1}, // BDS ein
 			UBXConfig{Key: 0x1031000d, Value: 0}, // BDS_B1_ENA aus
 			UBXConfig{Key: 0x1031000f, Value: 1}, // BDS_B1C_ENA ein
 			UBXConfig{Key: 0x10310018, Value: 1}, // GLO_L1_ENA ein
 			UBXConfig{Key: 0x10310025, Value: 1}, // GLO_ENA ein
+			// UBXConfig{Key: 0x20910346, Value: 1}, // nav-sig
+			// UBXConfig{Key: 0x20910016, Value: 1}, // nav-sat
 		)
 	}
 }
@@ -1822,7 +1883,7 @@ begin:
 					gps.SendNotify(err)
 					return
 				}
-				log.Printf("Class=%02X Message=%02X Length=%d Payload=% X", classId, messageId, l, bufPayload)
+				log.Printf("Class=0x%02X Message=0x%02X Length=%d Payload=% X", classId, messageId, l, bufPayload)
 				// log.Printf("Payload %v", bufPayload)
 				bufCrc := make([]byte, 2)
 				_, err = io.ReadFull(reader, bufCrc)
@@ -1847,6 +1908,13 @@ begin:
 							if first {
 								gps.sendUBXCfg()
 							}
+						}
+					} else if classId == 0x01 {
+						switch messageId {
+						case 0x43:
+							gps.parseUBXNavSig(bufPayload)
+						case 0x35:
+							gps.parseUBXNavSat(bufPayload)
 						}
 					}
 				}
