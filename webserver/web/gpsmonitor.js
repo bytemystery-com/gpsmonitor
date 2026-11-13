@@ -170,7 +170,8 @@ function doPeriodic()
 				if (json.status.raspi !== undefined)
 				{
 					const raspi = json.status.raspi
-					setValue("sysstat_fan", "sysstat_tr_fan", raspi.fan, (val) =>  val + " rpm");
+					if (tmp = document.getElementById("sysstat_fan"))
+						tmp.textContent = json.status.raspi.fan >= 0 ? json.status.raspi.fan + " rpm" : "---";
 					setValue("sysstat_cpu", "sysstat_tr_cpu", raspi.cpu, (val) =>  (val/10.0).toFixed(1) + " %");
 					setValue("sysstat_cpu_freq", "sysstat_tr_cpu_freq", raspi.cpu_freq, (val) =>  (val/1000.0).toFixed(2) + " GHz");
 					setValue("sysstat_temperature", "sysstat_tr_temperature", raspi.temp, (val) =>  (val/10.0).toFixed(1) + " °C");
@@ -202,11 +203,14 @@ function doPeriodic()
 					setValue("summary_height", "summary_tr_height", gps.al, (val) => val.toFixed(1) + " m");
 					setValue("summary_speed", "summary_tr_speed", gps.sp, (val) => val.toFixed(2) + " m/s");
 					setValue("summary_course", "summary_tr_course", gps.co, (val) => {
-						let v= ""
-						 v = val.toFixed(2) + " °";
-						 if (gps.mv !== undefined) {
-							v += " / " + gps.mv.toFixed(2) + " °"
-						 }
+						let v= "---"
+						if (val !== null) {
+							v = val.toFixed(2) + " °";
+							if (gps.mv !== undefined && gps.mv !== null) {
+								v += " / " + gps.mv.toFixed(2) + " °"
+							}
+						}
+						return v
 					})
 					setValue("summary_mode", "summary_tr_mode", gps.mo, (val) => {
 						let mode = ""
@@ -262,9 +266,54 @@ function doPeriodic()
 						return mode
 					});
 					setValue("summary_nsats", "summary_tr_nsats", gps.su, (val) => val + " / " + (gps.st != null ? gps.st : "---"));
-					setValue("summary_stdlatitude", "summary_tr_stdlatitude", gps.stla, (val) => val.toFixed(2) + " / " + (2*val).toFixed(2) + " m");
-					setValue("summary_stdlongitude", "summary_tr_stdlongitude", gps.stlo, (val) => val.toFixed(2) + " / " + (2*val).toFixed(2) + " m");
-					setValue("summary_stdaltitude", "summary_tr_altitude", gps.stal, (val) => val.toFixed(1) + " / " + (2*val).toFixed(1) + " m");
+					if (gps.stla != null || gps.stlo != null || gps.stal != null) {
+						let tmp = document.getElementById('summary_tr_stdlatitude') 
+						if (tmp)
+							tmp.style.display = ""
+						tmp = document.getElementById('summary_tr_stdlongitude') 
+						if (tmp)
+							tmp.style.display = ""
+						tmp = document.getElementById('summary_tr_stdaltitude') 
+						if (tmp)
+							tmp.style.display = ""
+
+						tmp = document.getElementById('summary_tr_vdop') 
+						if (tmp)
+							tmp.style.display = "none"
+						tmp = document.getElementById('summary_tr_hdop') 
+						if (tmp)
+							tmp.style.display = "none"
+						tmp = document.getElementById('summary_tr_pdop') 
+						if (tmp)
+							tmp.style.display = "none"
+						setValue("summary_stdlatitude", "summary_tr_stdlatitude", gps.stla, (val) => val.toFixed(2) + " / " + (2*val).toFixed(2) + " m");
+						setValue("summary_stdlongitude", "summary_tr_stdlongitude", gps.stlo, (val) => val.toFixed(2) + " / " + (2*val).toFixed(2) + " m");
+						setValue("summary_stdaltitude", "summary_tr_altitude", gps.stal, (val) => val.toFixed(1) + " / " + (2*val).toFixed(1) + " m");
+					} else {
+						let tmp = document.getElementById('summary_tr_stdlatitude') 
+						if (tmp)
+							tmp.style.display = "none"
+						tmp = document.getElementById('summary_tr_stdlongitude') 
+						if (tmp)
+							tmp.style.display = "none"
+						tmp = document.getElementById('summary_tr_stdaltitude') 
+						if (tmp)
+							tmp.style.display = "none"
+
+						tmp = document.getElementById('summary_tr_vdop') 
+						if (tmp)
+							tmp.style.display = ""
+						tmp = document.getElementById('summary_tr_hdop') 
+						if (tmp)
+							tmp.style.display = ""
+						tmp = document.getElementById('summary_tr_pdop') 
+						if (tmp)
+							tmp.style.display = ""
+						setValue("summary_vdop", "summary_tr_vdop", gps.vd, (val) => val.toFixed(2));
+						setValue("summary_hdop", "summary_tr_hdop", gps.hd, (val) => val.toFixed(2));
+						setValue("summary_pdop", "summary_tr_pdop", gps.pd, (val) => val.toFixed(2));
+
+					}
 					setValue("summary_date", "summary_tr_date", gps.dt, (val) => {
 						const date = new Date(val);
 

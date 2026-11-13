@@ -73,6 +73,9 @@ type WebDataGps struct {
 	StdLongitude *float32   `json:"stlo"`
 	StdLatitude  *float32   `json:"stla"`
 	StdAltitude  *float32   `json:"stal"`
+	HDop         *float32   `json:"hd"`
+	VDop         *float32   `json:"vd"`
+	PDop         *float32   `json:"pd"`
 	DateTime     *time.Time `json:"dt"`
 }
 

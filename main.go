@@ -93,20 +93,22 @@ func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
 		total := len(sats)
 		data := webserver.WebDataAll{
 			Gps: webserver.WebDataGps{
-				Longitude: getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
-				Latitude:  getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
-				Altitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
-				Speed:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
-				Course:    getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
-				MagVar:    getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
-				Mode:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
-				Quality:   getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
-				// NumUsedSats:  getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NumSats),
+				Longitude:    getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
+				Latitude:     getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
+				Altitude:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
+				Speed:        getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
+				Course:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
+				MagVar:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
+				Mode:         getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
+				Quality:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
 				NumUsedSats:  &used,
 				NumTotalSats: &total,
 				StdLongitude: getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLongitude),
 				StdLatitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLatitude),
 				StdAltitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdAltitude),
+				HDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.HDop),
+				VDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.VDop),
+				PDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.PDop),
 				DateTime:     getTimeForJsonFromAtomic(&Data.Gps.GpsSumData.Time),
 			},
 			Sats: sats,
@@ -163,13 +165,51 @@ func main() {
 			log.Printf("Port: %v", item.Manufacturer)
 		}*/
 	mode := &serial.Mode{
-		BaudRate: Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_BAUD_RATE, cfg.DEF_UART_BAUD_RATE),
 		DataBits: Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_BITS, cfg.DEF_UART_DATA_BITS),
 		Parity:   serial.Parity(Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_PARITY, cfg.DEF_UART_PARITY)),
 		StopBits: serial.StopBits(Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_STOP_BITS, cfg.DEF_UART_STOP_BITS)),
 	}
 
-	port, err := serial.Open(Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV), mode)
+	baudRate := Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_BAUD_RATE, cfg.DEF_UART_BAUD_RATE)
+	dev := Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV)
+	if baudRate == 0 {
+		// Auto detect
+		baudRates := []int{38400, 460800, 115200, 9600, 4800, 57600, 230400}
+		var port serial.Port
+		for _, br := range baudRates {
+			mode.BaudRate = br
+			if port == nil {
+				port, err = serial.Open(dev, mode)
+				if err != nil {
+					log.Printf("open port failed %v", err)
+					continue
+				}
+				port.SetReadTimeout(1200 * time.Millisecond)
+			} else {
+				port.SetMode(mode)
+			}
+			_ = port.ResetInputBuffer()
+			err = gps.TestGPSRead(port)
+			if err != nil {
+				log.Printf("Auto baudrate test for %d - %v", br, err)
+				continue
+			}
+			baudRate = br
+			log.Printf("Auto baud rate found - %d", br)
+			break
+		}
+		if port != nil {
+			port.Close()
+			time.Sleep(250 * time.Millisecond)
+		}
+	}
+
+	if baudRate == 0 {
+		log.Printf("No valid baud rate found")
+		return
+	}
+	mode.BaudRate = baudRate
+	port, err := serial.Open(dev, mode)
 	if err != nil {
 		log.Printf("open port failed %v", err)
 		return
@@ -178,13 +218,13 @@ func main() {
 		port.ResetOutputBuffer()
 		port.ResetInputBuffer()
 	})
-	// g.Trace = true
+	g.Trace = true
 	if err != nil {
 		port.Close()
 		return
 	}
 	Data.Gps = g
-	go g.Start(nil, Data.Config.GetBoolValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_IS_UBLOX, cfg.DEF_IS_UBLOX))
+	go g.Start(nil)
 
 	var callBacks WebCallbacksImpl
 	Data.WebServer = webserver.NewWebServer(callBacks, Data.Config)

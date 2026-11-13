@@ -891,6 +891,9 @@ type Gps struct {
 
 	// UBX
 	ubxVersion *UBXVer
+
+	// Queltec
+	qtmVersion *QTMVersion
 }
 
 func NewGps(reader io.Reader, writer io.Writer, flushCallBack func()) (*Gps, error) {
@@ -960,6 +963,21 @@ func (gps *Gps) parseLongitude(s string) float64 {
 		return math.NaN()
 	}
 	return float64(dd) + mm/60.0
+}
+
+func (gps *Gps) buildNmeaCmd(s string) string {
+	s = strings.TrimPrefix(strings.TrimSpace(s), "$")
+	idx := strings.IndexByte(s, '*')
+	if idx != -1 {
+		s = s[:idx]
+	}
+
+	var cSum byte
+	for i := 0; i < len(s); i++ {
+		cSum ^= s[i]
+	}
+
+	return fmt.Sprintf("$%s*%02X\r\n", s, cSum)
 }
 
 func (gps *Gps) verifyNmeaChecksum(s string) ([]string, error) {
@@ -1360,6 +1378,7 @@ func (gps *Gps) parseNmea(line string) {
 	}
 	sArray, err := gps.verifyNmeaChecksum(line)
 	if err != nil {
+		log.Printf("!!!!! ----- Checksum error %v ----- !!!!!", err)
 		return
 	}
 	// log.Printf("Token: %s", sArray[0])
@@ -1520,10 +1539,37 @@ func (gps *Gps) parseNmea(line string) {
 		}
 
 	default:
-		log.Printf("Unknownn token: %s", sArray[0])
+		if sArray[0][1:2] == "P" {
+			token := sArray[0][2:]
+			switch {
+			case token == "QTMVERNO":
+				// Quectel version
+				log.Printf("Queltec version %v", sArray[1:])
+				v, err := gps.parseQueltecVersion(sArray[1:])
+				if err != nil {
+					log.Printf("Unable to parse Queltec version !")
+				} else {
+					gps.SendNotify(*v)
+					gps.qtmVersion = v
+				}
+			case strings.HasPrefix(token, "AIR"): // Airoha
+				log.Printf("Airoha private token '%s'", sArray[0])
+			case strings.HasPrefix(token, "QTM"): // Quectel
+				log.Printf("Quectel private token '%s'", sArray[0])
+			case strings.HasPrefix(token, "UBX"): // u-blox
+				log.Printf("u-blox private token '%s'", sArray[0])
+			case strings.HasPrefix(token, "MTK"): // MediaTek
+				log.Printf("MediaTek private token '%s'", sArray[0])
+			default:
+				log.Printf("Unkwon private token '%s'", sArray[0])
+			}
+		} else {
+			log.Printf("Unknownn token: %s", sArray[0])
+		}
 	}
 }
 
+// UBX stuff
 func (gps *Gps) ubxChecksum(data []byte) (byte, byte) {
 	var ckA, ckB byte
 	for _, b := range data {
@@ -1753,6 +1799,126 @@ func (gps *Gps) sendUBXCfg() {
 	}
 }
 
+// Queltec staff
+type QTMModel int
+
+const (
+	QTM_UNKNOWN QTMModel = iota
+	QTM_LC29AA
+	QTM_LC29AI
+	QTM_LC29BA
+	QTM_LC29BS
+	QTM_LC29CA
+	QTM_LC29DA
+	QTM_LC29EA
+	QTM_LG290P
+)
+
+type QTMVersion struct {
+	Model        QTMModel
+	Firmware     string
+	FirmwareDate time.Time
+}
+
+func (v *QTMVersion) Print() {
+	log.Printf("QTM version:")
+	log.Printf("  Model: %v", v.Model)
+	log.Printf("  Firmware: %s", v.Firmware)
+	log.Printf("  Firmware date: %v", v.FirmwareDate)
+}
+
+func (gps *Gps) parseQueltecVersion(sArray []string) (*QTMVersion, error) {
+	// Beispiel sArray: ["LC29HEANR11A03S_RSA", "2023/10/31", "16:52:14*2B"]
+	if len(sArray) < 3 {
+		return nil, fmt.Errorf("zu wenige Felder in PQTMVERNO")
+	}
+
+	var ver QTMVersion
+	fullVer := sArray[0]
+	if len(fullVer) >= 7 {
+		switch fullVer[:7] {
+		case "LC29HAA":
+			ver.Model = QTM_LC29AA
+			ver.Firmware = fullVer[7:]
+		case "LC29HAI":
+			ver.Model = QTM_LC29AI
+			ver.Firmware = fullVer[7:]
+		case "LC29HBA":
+			ver.Model = QTM_LC29BA
+			ver.Firmware = fullVer[7:]
+		case "LC29HBS":
+			ver.Model = QTM_LC29BS
+			ver.Firmware = fullVer[7:]
+		case "LC29HCA":
+			ver.Model = QTM_LC29CA
+			ver.Firmware = fullVer[7:]
+		case "LC29HDA":
+			ver.Model = QTM_LC29DA
+			ver.Firmware = fullVer[7:]
+		case "LC29HEA":
+			ver.Model = QTM_LC29EA
+			ver.Firmware = fullVer[7:]
+		case "LG290P0":
+			ver.Model = QTM_LG290P
+			if len(fullVer) >= 10 {
+				fullVer = fullVer[:7] + fullVer[10:] // Entfernt "3AA" bzw. "1AA" für das spätere fullVer[7:]
+			}
+		default:
+			ver.Model = QTM_UNKNOWN
+		}
+	}
+
+	timeStr := sArray[2]
+	idx := strings.Index(timeStr, "*")
+	if idx != -1 {
+		timeStr = timeStr[:idx]
+	}
+
+	// 3. Datum und Uhrzeit kombinieren und parsen (in UTC)
+	dateTimeStr := sArray[1] + " " + timeStr
+	parsedTime, err := time.Parse("2006/01/02 15:04:05", dateTimeStr)
+	if err != nil {
+		return nil, fmt.Errorf("Datum konnte nicht geparst werden: %w", err)
+	}
+	ver.FirmwareDate = parsedTime
+
+	return &ver, nil
+}
+
+func (gps *Gps) qtmSwitchOffPPS() error {
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR752,0,100")))
+		// _, err := gps.writer.Write([]byte(gps.buildNmeaCmd("PQTMCFGPPS,R,1")))
+		return err
+	}
+	return fmt.Errorf("no version information available")
+}
+
+func (gps *Gps) qtmSwitchOnGST() error {
+	if gps.qtmVersion != nil {
+		s := ""
+		switch gps.qtmVersion.Model {
+		case QTM_LC29AA, QTM_LC29AI:
+			s = gps.buildNmeaCmd("$PAIR062,8,1")
+		case QTM_LC29DA:
+			s = gps.buildNmeaCmd("$PQTMCFGMSGRATE,W,GST,1")
+		default:
+			// BA, BS, CA, EA und UNKNOWN unterstützen kein GST
+			return fmt.Errorf("no GST support")
+		}
+		if s != "" {
+			_, err := gps.writer.Write([]byte(s))
+			return err
+		}
+	}
+	return fmt.Errorf("no version information available")
+}
+
+func (gps *Gps) qtmSendCfg() {
+	gps.qtmSwitchOnGST()
+	gps.qtmSwitchOffPPS()
+}
+
 func (gps *Gps) doSatMapCleanup() {
 	for {
 		time.Sleep(CLEAMUP_INTERVAL * time.Second)
@@ -1770,7 +1936,7 @@ func (gps *Gps) doSatMapCleanup() {
 	}
 }
 
-func (gps *Gps) Start(notify chan<- any, isUbx bool) {
+func (gps *Gps) Start(notify chan<- any) {
 	gps.notify = notify
 	reader := bufio.NewReader(gps.reader)
 	go gps.doSatMapCleanup()
@@ -1781,50 +1947,17 @@ func (gps *Gps) Start(notify chan<- any, isUbx bool) {
 	}
 	reader.Reset(gps.reader)
 
-begin:
-	if isUbx {
-		err := gps.SendUBXVerRequest()
-		if err != nil {
-			log.Printf("Send UBX version request failed %s", err)
-			gps.SendNotify(err)
-			return
-		} else {
-			log.Printf("UBX version request done")
-		}
-	}
-
-	ubxStart := false
 	var b byte
 	var err error
-	if isUbx {
-		count := 0
-		for {
-			b, err = reader.ReadByte()
-			if err != nil {
-				log.Printf("Read failed %s", err)
-				gps.SendNotify(err)
-				return
-			}
-			if b == 0xB5 {
-				ubxStart = true
-				break
-			}
-			count++
-			if count > 8192 { // manchmal gibt es keine Antwort von ublox
-				goto begin
-			}
-		}
-	}
+	locked := false
+
 	for {
-		if !ubxStart {
-			b, err = reader.ReadByte()
-			if err != nil {
-				log.Printf("Read failed %s", err)
-				gps.SendNotify(err)
-				return
-			}
+		b, err = reader.ReadByte()
+		if err != nil {
+			log.Printf("Read failed %s", err)
+			gps.SendNotify(err)
+			return
 		}
-		ubxStart = false
 		switch b {
 		case '$':
 			line, err := reader.ReadString('\n')
@@ -1833,13 +1966,33 @@ begin:
 				gps.SendNotify(err)
 				return
 			}
-			if isUbx && gps.ubxVersion != nil {
-				line = "$" + line
-				gps.parseNmea(line)
-				if first {
+			line = "$" + line
+			gps.parseNmea(line)
+			if !locked {
+				locked = true
+				gps.GpsSumData.IsReady.Store(true)
+
+				// UBX
+				err := gps.SendUBXVerRequest()
+				if err != nil {
+					log.Printf("Send UBX version request failed %s", err)
+					gps.SendNotify(err)
+					return
+				}
+				// Quectel (LC29H, LC79H, LC76G, LC86G und LG580P)
+				_, err = gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMVERNO")))
+				if err != nil {
+					log.Printf("Send Quectel version request failed %s", err)
+					gps.SendNotify(err)
+				}
+			} else if first {
+				if gps.qtmVersion != nil {
+					gps.qtmSendCfg()
 					first = false
-					gps.GpsSumData.IsReady.Store(true)
-					// gps.SendUBXVerRequest()
+				}
+				if gps.ubxVersion != nil {
+					gps.sendUBXCfg()
+					first = false
 				}
 			}
 
@@ -1905,9 +2058,6 @@ begin:
 						if err == nil {
 							gps.ubxVersion = ver
 							gps.ubxVersion.Print()
-							if first {
-								gps.sendUBXCfg()
-							}
 						}
 					} else if classId == 0x01 {
 						switch messageId {
@@ -1919,7 +2069,10 @@ begin:
 					}
 				}
 			}
+		default:
+			// log.Printf("Read %c", b)
 		}
+
 	}
 }
 
@@ -1949,4 +2102,32 @@ func GetGoogleMapsLink(latitude, longitude float64) string {
 
 func GetGoogleEarthLink(latitude, longitude float64) string {
 	return fmt.Sprintf("https://earth.google.com/web/search/%.8f,%.8f", latitude, longitude)
+}
+
+func TestGPSRead(r io.Reader) error {
+	buf := make([]byte, 1024)
+	var str strings.Builder
+	str.Grow(1024)
+
+	reader := bufio.NewReader(r)
+	reader.Reset(r)
+	time.Sleep(150 * time.Millisecond)
+
+	deadline := time.Now().Add(1200 * time.Millisecond)
+
+	for time.Now().Before(deadline) {
+		n, err := reader.Read(buf)
+		if err != nil {
+			return err
+		}
+		if n > 0 {
+			str.Write(buf[:n])
+			chunk := str.String()
+			if (strings.Contains(chunk, "$G") || strings.Contains(chunk, "$P")) && strings.Contains(chunk, "*") {
+				return nil
+			}
+		}
+	}
+	// 	log.Printf("Nix - %s", str.String())
+	return fmt.Errorf("no valid data")
 }

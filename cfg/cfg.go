@@ -67,7 +67,6 @@ const (
 	KEY_HARDWARE_DATA_BITS      = "DataBits"
 	KEY_HARDWARE_DATA_PARITY    = "Partity"
 	KEY_HARDWARE_DATA_STOP_BITS = "StopBits"
-	KEY_HARDWARE_IS_UBLOX       = "IsUblox"
 
 	SECTION_RUN    = "run"
 	KEY_RUN_REBOOT = "Reboots"
@@ -85,12 +84,12 @@ const (
 	DEF_WEBSERVER_KEY_FILE          = "/etc/gpsmonitord/certs/gpsmonitord.key"
 	DEF_WEBSERVER_CERT_FILE         = "/etc/gpsmonitord/certs/gpsmonitord.crt"
 	DEF_UART_DEV                    = "/dev/ttyAMA0"
-	DEF_UART_BAUD_RATE              = 38400
-	DEF_UART_DATA_BITS              = 8
-	DEF_UART_PARITY                 = 0
-	DEF_UART_STOP_BITS              = 0
-	DEF_IS_UBLOX                    = true
-	DEF_RESTART_POFF_TIME           = 60 // sec
+	// DEF_UART_BAUD_RATE              = 38400
+	DEF_UART_BAUD_RATE    = 0
+	DEF_UART_DATA_BITS    = 8
+	DEF_UART_PARITY       = 0
+	DEF_UART_STOP_BITS    = 0
+	DEF_RESTART_POFF_TIME = 60 // sec
 )
 
 type Cfg struct {
@@ -247,7 +246,7 @@ func (c *Cfg) SetDeaultCfg() {
 	c.SetIntValue(SECTION_SYSTEM, KEY_SYSTEM_RESTART_POFF_TIME, DEF_RESTART_POFF_TIME, "Restart after restart command [sec]")
 
 	c.SetStringValue(SECTION_HARDWARE, KEY_HARDWARE_UART_DEV, DEF_UART_DEV, "UART device")
-	c.SetIntValue(SECTION_HARDWARE, KEY_HARDWARE_BAUD_RATE, DEF_UART_BAUD_RATE, "Baudrate (9600, 38400, 115200)")
+	c.SetIntValue(SECTION_HARDWARE, KEY_HARDWARE_BAUD_RATE, DEF_UART_BAUD_RATE, "Baudrate (0=auto, 9600, 38400, 115200, 460800)")
 	c.SetIntValue(SECTION_HARDWARE, KEY_HARDWARE_DATA_BITS, DEF_UART_DATA_BITS, "Data bits")
 	c.SetIntValue(SECTION_HARDWARE, KEY_HARDWARE_DATA_PARITY, DEF_UART_PARITY, "Parity: 0=none, 1=Odd, 2=Even, 3=Mark, 4=Space")
 	c.SetIntValue(SECTION_HARDWARE, KEY_HARDWARE_DATA_STOP_BITS, DEF_UART_STOP_BITS, "SopBits: 0=1, 1=1.5, 2=2")
