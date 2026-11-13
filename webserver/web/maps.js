@@ -304,7 +304,7 @@ function openGoogleMaps(lat, lng){
 
 function openOpenStreetMaps(lat, lng){
     window.open(
-        `https://www.openstreetmap.org/?lat=${lat}&lon=${lng}&mlat=${lat}&mlon=${lng}&zoom=17&layers=M`,
+        `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=17layers=M`,
         '_blank'
     );
 }
