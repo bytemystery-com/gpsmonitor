@@ -218,7 +218,7 @@ func main() {
 		port.ResetOutputBuffer()
 		port.ResetInputBuffer()
 	})
-	g.Trace = true
+	// g.Trace = true
 	if err != nil {
 		port.Close()
 		return

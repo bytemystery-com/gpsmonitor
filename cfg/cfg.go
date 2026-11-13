@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	GPS_MONITOR_VERSION = "1.2"
+	GPS_MONITOR_VERSION = "1.3"
 
 	SECTION_GENERAL             = "general"
 	KEY_GENERAL_NAME            = "Name"
@@ -84,12 +84,11 @@ const (
 	DEF_WEBSERVER_KEY_FILE          = "/etc/gpsmonitord/certs/gpsmonitord.key"
 	DEF_WEBSERVER_CERT_FILE         = "/etc/gpsmonitord/certs/gpsmonitord.crt"
 	DEF_UART_DEV                    = "/dev/ttyAMA0"
-	// DEF_UART_BAUD_RATE              = 38400
-	DEF_UART_BAUD_RATE    = 0
-	DEF_UART_DATA_BITS    = 8
-	DEF_UART_PARITY       = 0
-	DEF_UART_STOP_BITS    = 0
-	DEF_RESTART_POFF_TIME = 60 // sec
+	DEF_UART_BAUD_RATE              = 0 // auto
+	DEF_UART_DATA_BITS              = 8
+	DEF_UART_PARITY                 = 0
+	DEF_UART_STOP_BITS              = 0
+	DEF_RESTART_POFF_TIME           = 60 // sec
 )
 
 type Cfg struct {

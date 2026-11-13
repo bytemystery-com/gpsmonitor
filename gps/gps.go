@@ -1545,7 +1545,7 @@ func (gps *Gps) parseNmea(line string) {
 			case token == "QTMVERNO":
 				// Quectel version
 				log.Printf("Queltec version %v", sArray[1:])
-				v, err := gps.parseQueltecVersion(sArray[1:])
+				v, err := gps.qtmParseVersion(sArray[1:])
 				if err != nil {
 					log.Printf("Unable to parse Queltec version !")
 				} else {
@@ -1799,7 +1799,7 @@ func (gps *Gps) sendUBXCfg() {
 	}
 }
 
-// Queltec staff
+// Quectel staff
 type QTMModel int
 
 const (
@@ -1827,7 +1827,7 @@ func (v *QTMVersion) Print() {
 	log.Printf("  Firmware date: %v", v.FirmwareDate)
 }
 
-func (gps *Gps) parseQueltecVersion(sArray []string) (*QTMVersion, error) {
+func (gps *Gps) qtmParseVersion(sArray []string) (*QTMVersion, error) {
 	// Beispiel sArray: ["LC29HEANR11A03S_RSA", "2023/10/31", "16:52:14*2B"]
 	if len(sArray) < 3 {
 		return nil, fmt.Errorf("zu wenige Felder in PQTMVERNO")
@@ -1918,6 +1918,8 @@ func (gps *Gps) qtmSendCfg() {
 	gps.qtmSwitchOnGST()
 	gps.qtmSwitchOffPPS()
 }
+
+// END
 
 func (gps *Gps) doSatMapCleanup() {
 	for {

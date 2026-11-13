@@ -29,7 +29,7 @@ To prevent unnecessary flickering, the map is only updated when the position cha
 - ublox
   - Neo-M9N
   - MAX M10S
-- Queltec
+- Quectel
   - LC29HEA
 
 Author: Reiner Pröls  
