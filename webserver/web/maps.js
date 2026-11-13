@@ -210,7 +210,8 @@ class OpenStreetMap {
         this.marker = L.marker([0.0, 0.0]).addTo(this.map);
 
         this.map.on('click', function(e) {
-            openGoogleMaps(e.latlng.lat, e.latlng.lng);
+            // openGoogleMaps(e.latlng.lat, e.latlng.lng);
+            openOpenStreetMaps(e.latlng.lat, e.latlng.lng);
         });
         document.addEventListener('mouseup', () => {
             this.followPosition = true;
@@ -297,6 +298,13 @@ class GoogleMap {
 function openGoogleMaps(lat, lng){
     window.open(
         `https://www.google.com/maps?q=${lat},${lng}`,
+        '_blank'
+    );
+}
+
+function openOpenStreetMaps(lat, lng){
+    window.open(
+        `https://www.openstreetmap.org/?lat=${lat}&lon=${lng}&zoom=16&layers=M`,
         '_blank'
     );
 }
