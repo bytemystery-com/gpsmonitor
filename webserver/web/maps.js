@@ -125,6 +125,8 @@ class OpenStreetMap {
         this.map = null;
         this.marker = null;
         this.followPosition = true;
+        this.lat = 0
+        this.lng = 0
     }
     Load(){
         const css = document.createElement('link');
@@ -209,9 +211,10 @@ class OpenStreetMap {
 
         this.marker = L.marker([0.0, 0.0]).addTo(this.map);
 
-        this.map.on('click', function(e) {
-            // openGoogleMaps(e.latlng.lat, e.latlng.lng);
-            openOpenStreetMaps(e.latlng.lat, e.latlng.lng);
+        this.map.on('click', (e) => {
+            // openGoogleMaps(this.lat, this.lng);
+            openOpenStreetMaps(this.lat, this.lng);
+            // openOpenStreetMaps(e.latlng.lat, e.latlng.lng);
         });
         document.addEventListener('mouseup', () => {
             this.followPosition = true;
@@ -246,6 +249,8 @@ class OpenStreetMap {
             if (this.map && this.followPosition)
             this.map.panTo([lat, lng]);
         }
+        this.lat = lat;
+        this.lng = lng;
     }
 }
 
@@ -304,7 +309,7 @@ function openGoogleMaps(lat, lng){
 
 function openOpenStreetMaps(lat, lng){
     window.open(
-        `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=17layers=M`,
+        `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=17&layers=M`,
         '_blank'
     );
 }
