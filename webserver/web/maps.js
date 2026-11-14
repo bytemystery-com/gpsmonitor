@@ -193,8 +193,8 @@ class OpenStreetMap {
         const cyclosm = L.tileLayer(
             'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
             // attribution: '&copy; OpenStreetMap contributors | CyclOSM'
-        });        
-
+        });
+        
         // Standardkarte anzeigen
         osm.addTo(this.map);
         // Auswahlmenü
@@ -206,7 +206,7 @@ class OpenStreetMap {
             "Dark Matter (dunkel)": dark,
             "Voyager": voyager,
             "HOT": hot,
-            "CyclOSM (Radwege)": cyclosm
+            "CyclOSM (Radwege)": cyclosm,
         }).addTo(this.map);
 
         this.marker = L.marker([0.0, 0.0]).addTo(this.map);
@@ -309,7 +309,7 @@ function openGoogleMaps(lat, lng){
 
 function openOpenStreetMaps(lat, lng){
     window.open(
-        `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=17&layers=M`,
+        `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=18&layers=M`,
         '_blank'
     );
 }
