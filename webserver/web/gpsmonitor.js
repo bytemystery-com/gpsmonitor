@@ -208,7 +208,6 @@ function doPeriodic()
 				setValue("summary_version", "summary_tr_version", json.status.version, null);
 				if (json.data?.gps !== undefined) {
 					const gps = json.data.gps
-					console.log(gps)
 					setValue("summary_latitude", "summary_tr_latitude", gps.la, (val) => val.toFixed(6));
 					setValue("summary_longitude", "summary_tr_longitude", gps.lo, (val) => val.toFixed(6));
 					setValue("summary_height", "summary_tr_height", gps.al, (val) => val.toFixed(1) + " m");
@@ -349,8 +348,10 @@ function doPeriodic()
 					});
 					UpdateMap(gps.la, gps.lo);
 				}
-				if (json.data?.sats)
+				if (json.data?.sats) {
+					console.log(json.data.sats)
 					doUpdateGpsViews(json.data.sats)
+				}
 			} // response != NULL
 
 			data_request = null;

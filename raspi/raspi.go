@@ -437,7 +437,7 @@ var reWifiSignal = regexp.MustCompile(`signal:\s*(-?\d+)\s*dBm`)
 // strength, rx, tx
 // dbm, kByte, kByte
 func GetWifiInfo(iface string) (int, uint64, uint64, error) {
-	out, err := exec.Command("iw", "dev", iface, "link").Output()
+	out, err := exec.Command("/usr/sbin/iw", "dev", iface, "link").Output()
 	if err != nil {
 		return 0, 0, 0, err
 	}
