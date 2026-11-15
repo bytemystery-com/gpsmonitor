@@ -897,8 +897,16 @@ type Gps struct {
 	// UBX
 	ubxVersion *UBXVer
 
-	// Queltec
+	// Quectel
 	qtmVersion *QTMVersion
+}
+
+func (gps *Gps) GetUbxVersion() *UBXVer {
+	return gps.ubxVersion
+}
+
+func (gps *Gps) GetQtmVersion() *QTMVersion {
+	return gps.qtmVersion
 }
 
 func NewGps(reader io.Reader, writer io.Writer, flushCallBack func()) (*Gps, error) {
@@ -1665,18 +1673,32 @@ const (
 	UBX_M10
 )
 
+func (model UBXModel) MarshalText() (text []byte, err error) {
+	switch model {
+	case UBX_UNKNOWN:
+		return []byte("UNKNOWN"), nil
+	case UBX_M9:
+		return []byte("M9"), nil
+	case UBX_M10:
+		return []byte("M10"), nil
+	default:
+		return fmt.Appendf(nil, "MODEL_%d", model), nil
+
+	}
+}
+
 type UBXVer struct {
-	SwVersion  string
-	HwVersion  string
-	Extensions []string
-	Model      string
-	UBXModel   UBXModel
+	SwVersion  string   `json:"sver"`
+	HwVersion  string   `json:"hver"`
+	Extensions []string `json:"ext"`
+	ModelStr   string   `json:"model_str"`
+	Model      UBXModel `json:"model"`
 }
 
 func (v *UBXVer) Print() {
 	log.Printf("UBX version:")
 	log.Printf("  Model: %v", v.Model)
-	log.Printf("  UBXModel: %d", v.UBXModel)
+	log.Printf("  UBXModel: %d", v.Model)
 	log.Printf("  Extensions: %v", v.Extensions)
 	log.Printf("  SW version: %s", v.SwVersion)
 	log.Printf("  HW version: %s", v.HwVersion)
@@ -1750,31 +1772,31 @@ func (gps *Gps) parseUBXVer(payLoad []byte) (*UBXVer, error) {
 	for _, ext := range mon.Extensions {
 		after, ok := strings.CutPrefix(ext, "MOD=")
 		if ok {
-			mon.Model = after
+			mon.ModelStr = after
 			break
 		}
 	}
 	swUpper := strings.ToUpper(mon.SwVersion)
 	hwUpper := strings.ToUpper(mon.HwVersion)
-	modUpper := strings.ToUpper(mon.Model)
+	modUpper := strings.ToUpper(mon.ModelStr)
 
 	switch {
 	case strings.Contains(modUpper, "M9"):
-		mon.UBXModel = UBX_M9
+		mon.Model = UBX_M9
 
 	case strings.Contains(modUpper, "M10"):
-		mon.UBXModel = UBX_M10
+		mon.Model = UBX_M10
 
 	// Erkennung über die offizielle u-blox Hardware-Generations-ID für M10
 	case hwUpper == "00100000":
-		mon.UBXModel = UBX_M10
+		mon.Model = UBX_M10
 
 	// Erweiterter Fallback für ältere/spezifische M10 ROM-Revisionen
 	case hwUpper == "000A0000" && (strings.Contains(swUpper, "SPG 5.10") || strings.Contains(swUpper, "SPG 5.1")):
-		mon.UBXModel = UBX_M10
+		mon.Model = UBX_M10
 
 	default:
-		mon.UBXModel = UBX_UNKNOWN
+		mon.Model = UBX_UNKNOWN
 	}
 	return mon, nil
 }
@@ -1786,7 +1808,7 @@ func (gps *Gps) sendUBXCfg() {
 		UBXConfig{Key: 0x209100d4, Value: 1}, // GST einschalten
 	)
 
-	switch gps.ubxVersion.UBXModel {
+	switch gps.ubxVersion.Model {
 	case UBX_M9:
 		gps.UBXSendConfig(0x01,
 			UBXConfig{Key: 0x20930001, Value: 41}, // NMEA 4.10
@@ -1815,20 +1837,45 @@ type QTMModel int
 
 const (
 	QTM_UNKNOWN QTMModel = iota
-	QTM_LC29AA
-	QTM_LC29AI
-	QTM_LC29BA
-	QTM_LC29BS
-	QTM_LC29CA
-	QTM_LC29DA
-	QTM_LC29EA
+	QTM_LC29HAA
+	QTM_LC29HAI
+	QTM_LC29HBA
+	QTM_LC29HBS
+	QTM_LC29HCA
+	QTM_LC29HDA
+	QTM_LC29HEA
 	QTM_LG290P
 )
 
+func (model QTMModel) MarshalText() (text []byte, err error) {
+	switch model {
+	case QTM_UNKNOWN:
+		return []byte("UNKNOWN"), nil
+	case QTM_LC29HAA:
+		return []byte("LC29HAA"), nil
+	case QTM_LC29HAI:
+		return []byte("LC29HAI"), nil
+	case QTM_LC29HBA:
+		return []byte("LC29HBA"), nil
+	case QTM_LC29HBS:
+		return []byte("LC29HBS"), nil
+	case QTM_LC29HCA:
+		return []byte("LC29HCA"), nil
+	case QTM_LC29HDA:
+		return []byte("LC29HDA"), nil
+	case QTM_LC29HEA:
+		return []byte("LC29HEA"), nil
+	case QTM_LG290P:
+		return []byte("LG290P"), nil
+	default:
+		return fmt.Appendf(nil, "%d", model), nil
+	}
+}
+
 type QTMVersion struct {
-	Model        QTMModel
-	Firmware     string
-	FirmwareDate time.Time
+	Model        QTMModel  `json:"model"`
+	Firmware     string    `json:"fw"`
+	FirmwareDate time.Time `json:"fw_dt"`
 }
 
 func (v *QTMVersion) Print() {
@@ -1849,25 +1896,25 @@ func (gps *Gps) qtmParseVersion(sArray []string) (*QTMVersion, error) {
 	if len(fullVer) >= 7 {
 		switch fullVer[:7] {
 		case "LC29HAA":
-			ver.Model = QTM_LC29AA
+			ver.Model = QTM_LC29HAA
 			ver.Firmware = fullVer[7:]
 		case "LC29HAI":
-			ver.Model = QTM_LC29AI
+			ver.Model = QTM_LC29HAI
 			ver.Firmware = fullVer[7:]
 		case "LC29HBA":
-			ver.Model = QTM_LC29BA
+			ver.Model = QTM_LC29HBA
 			ver.Firmware = fullVer[7:]
 		case "LC29HBS":
-			ver.Model = QTM_LC29BS
+			ver.Model = QTM_LC29HBS
 			ver.Firmware = fullVer[7:]
 		case "LC29HCA":
-			ver.Model = QTM_LC29CA
+			ver.Model = QTM_LC29HCA
 			ver.Firmware = fullVer[7:]
 		case "LC29HDA":
-			ver.Model = QTM_LC29DA
+			ver.Model = QTM_LC29HDA
 			ver.Firmware = fullVer[7:]
 		case "LC29HEA":
-			ver.Model = QTM_LC29EA
+			ver.Model = QTM_LC29HEA
 			ver.Firmware = fullVer[7:]
 		case "LG290P0":
 			ver.Model = QTM_LG290P
@@ -1909,9 +1956,9 @@ func (gps *Gps) qtmSwitchOnGST() error {
 	if gps.qtmVersion != nil {
 		s := ""
 		switch gps.qtmVersion.Model {
-		case QTM_LC29AA, QTM_LC29AI:
+		case QTM_LC29HAA, QTM_LC29HAI:
 			s = gps.buildNmeaCmd("$PAIR062,8,1")
-		case QTM_LC29DA:
+		case QTM_LC29HDA:
 			s = gps.buildNmeaCmd("$PQTMCFGMSGRATE,W,GST,1")
 		default:
 			// BA, BS, CA, EA und UNKNOWN unterstützen kein GST

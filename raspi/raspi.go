@@ -29,17 +29,21 @@ package raspi
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"gpsmonitord/cfg"
+
+	"go.bug.st/serial"
 )
 
 var RebbotRequested atomic.Bool
@@ -478,4 +482,126 @@ func GetWifiInfo(iface string) (int, uint64, uint64, error) {
 	}
 
 	return signal, rx, tx, nil
+}
+
+// CountedPort umschließt einen serial.Port und zählt automatisch alle RX- und TX-Bytes.
+type CountedPort struct {
+	serial.Port
+	rxBytes      atomic.Uint64
+	txBytes      atomic.Uint64
+	mode         serial.Mode
+	bitsPerFrame float64
+
+	mu       sync.Mutex
+	lastRx   uint64
+	lastTx   uint64
+	lastTime time.Time
+	hasInit  bool
+}
+
+func NewCountedPort(port serial.Port, mode serial.Mode) *CountedPort {
+	p := CountedPort{
+		Port: port,
+		mode: mode,
+	}
+	p.bitsPerFrame = p.getBitsPerFrame()
+	return &p
+}
+
+// Read leitet an serial.Port.Read weiter und zählt empfangene Bytes.
+func (p *CountedPort) Read(b []byte) (int, error) {
+	n, err := p.Port.Read(b)
+	if n > 0 {
+		p.rxBytes.Add(uint64(n))
+	}
+	return n, err
+}
+
+// Write leitet an serial.Port.Write weiter und zählt gesendete Bytes.
+func (p *CountedPort) Write(b []byte) (int, error) {
+	n, err := p.Port.Write(b)
+	if n > 0 {
+		p.txBytes.Add(uint64(n))
+	}
+	return n, err
+}
+
+func (p *CountedPort) SetMode(mode *serial.Mode) error {
+	err := p.Port.SetMode(mode)
+	if err != nil {
+		return err
+	}
+	if mode != nil {
+		p.mu.Lock()
+		p.mode = *mode
+		p.bitsPerFrame = p.getBitsPerFrame()
+		p.mu.Unlock()
+	}
+	return nil
+}
+
+func (p *CountedPort) getBitsPerFrame() float64 {
+	// always 1 Startbit
+	bits := 1.0
+
+	// Datenbits (falls 0/nicht gesetzt, nutzt go.bug.st/serial standardmäßig 8)
+	if p.mode.DataBits == 0 {
+		bits += 8.0
+	} else {
+		bits += float64(p.mode.DataBits)
+	}
+
+	// Paritätsbit (alles außer NoParity fügt 1 Bit hinzu)
+	if p.mode.Parity != serial.NoParity {
+		bits += 1.0
+	}
+
+	// Stoppbits (Standard bei 0/nicht gesetzt ist 1 Stoppbit)
+	switch p.mode.StopBits {
+	case serial.OneStopBit:
+		bits += 1.0
+	case serial.OnePointFiveStopBits:
+		bits += 1.5
+	case serial.TwoStopBits:
+		bits += 2.0
+	default:
+		bits += 1.0
+	}
+
+	return bits
+}
+
+// GetBaudRates calculates RX- and TX-Baudrate
+func (p *CountedPort) GetBaudRates() (rxBaud uint64, txBaud uint64, configBaud uint32) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	rx := p.rxBytes.Load()
+	tx := p.txBytes.Load()
+	now := time.Now()
+
+	if !p.hasInit {
+		p.lastRx = rx
+		p.lastTx = tx
+		p.lastTime = now
+		p.hasInit = true
+		return 0, 0, uint32(p.mode.BaudRate)
+	}
+
+	elapsed := now.Sub(p.lastTime).Seconds()
+	if elapsed <= 0 {
+		return 0, 0, uint32(p.mode.BaudRate)
+	}
+
+	rxDiff := rx - p.lastRx
+	txDiff := tx - p.lastTx
+
+	p.lastRx = rx
+	p.lastTx = tx
+	p.lastTime = now
+
+	rxBaud = uint64(math.Round((float64(rxDiff) / elapsed) * p.bitsPerFrame))
+	txBaud = uint64(math.Round((float64(txDiff) / elapsed) * p.bitsPerFrame))
+
+	return rxBaud, txBaud, uint32(p.mode.BaudRate)
 }

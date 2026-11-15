@@ -203,6 +203,10 @@ function doPeriodic()
 						setValue("sysstat_wifi", "sysstat_tr_wifi", raspi.wifi_strength, (val) => val + " dBm / " + kB2Str(raspi.wifi_rx + raspi.wifi_tx));
 					else
 						hideElement("sysstat_tr_wifi")
+					if (raspi.tty_cfg !== undefined && raspi.tty_rx !== undefined && raspi.tty_tx !== undefined)
+						setValue("sysstat_tty", "sysstat_tr_tty", raspi.tty_cfg, (val) => `${raspi.tty_rx} / ${raspi.tty_tx} / ${raspi.tty_cfg}`);
+					else
+						hideElement("sysstat_tr_wifi")
 				}
 				// GPS data
 				setValue("summary_version", "summary_tr_version", json.status.version, null);
@@ -322,8 +326,8 @@ function doPeriodic()
 						setValue("summary_vdop", "summary_tr_vdop", gps.vd, (val) => val.toFixed(2));
 						setValue("summary_hdop", "summary_tr_hdop", gps.hd, (val) => val.toFixed(2));
 						setValue("summary_pdop", "summary_tr_pdop", gps.pd, (val) => val.toFixed(2));
-						setValue("summary_errors", "summary_tr_errors", gps.er, (val) => val);
 					}
+					setValue("summary_errors", "summary_tr_errors", gps.er, null);
 					setValue("summary_date", "summary_tr_date", gps.dt, (val) => {
 						const date = new Date(val);
 
@@ -346,10 +350,22 @@ function doPeriodic()
 						}).format(date);
 						return formattedString
 					});
+					if (json.data?.ver !== undefined) {
+						const ver = json.data.ver;
+						if (ver?.qtm != null) {
+							setValue("summary_model", "summary_tr_model", ver.qtm.model, null)
+						} else if (ver?.ubx != null) {
+							setValue("summary_model", "summary_tr_model", ver.ubx.model, null)
+						} else {
+							setValue("summary_model", "summary_tr_model", null, null)
+						}
+					} else {
+							setValue("summary_model", "summary_tr_model", null, null)
+					}
 					UpdateMap(gps.la, gps.lo);
 				}
 				if (json.data?.sats) {
-					console.log(json.data.sats)
+					// console.log(json.data.sats)
 					doUpdateGpsViews(json.data.sats)
 				}
 			} // response != NULL

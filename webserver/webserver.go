@@ -80,9 +80,15 @@ type WebDataGps struct {
 	Errors       *uint32    `json:"er"`
 }
 
+type WebGpsVersions struct {
+	Ublox *gps.UBXVer     `json:"ubx,omitempty"`
+	Qtm   *gps.QTMVersion `json:"qtm,omitempty"`
+}
+
 type WebDataAll struct {
-	Sats []gps.SatInfo `json:"sats"`
-	Gps  WebDataGps    `json:"gps"`
+	Sats    []gps.SatInfo  `json:"sats"`
+	Gps     WebDataGps     `json:"gps"`
+	Version WebGpsVersions `json:"ver"`
 }
 
 type WebCallBacks interface {
@@ -97,14 +103,16 @@ type WebServer struct {
 	httpServer   *http.Server
 	httpsServer  *http.Server
 	cfg          *cfg.Cfg
+	serMon       *raspi.CountedPort
 	sessions     map[string]time.Time
 	sessionsLock sync.RWMutex
 }
 
-func NewWebServer(callBacks WebCallBacks, config *cfg.Cfg) *WebServer {
+func NewWebServer(callBacks WebCallBacks, cfg *cfg.Cfg, serMon *raspi.CountedPort) *WebServer {
 	return &WebServer{
 		callBacks: callBacks,
-		cfg:       config,
+		cfg:       cfg,
+		serMon:    serMon,
 		sessions:  make(map[string]time.Time, 10),
 	}
 }
@@ -137,21 +145,24 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	type raspiStatus struct {
-		Fan          int    `json:"fan"`
-		CpuUsage     int    `json:"cpu"`
-		CpuFrequency int    `json:"cpu_freq"` // MHz
-		Temperature  int    `json:"temp"`
-		Voltage_5v   int    `json:"voltage_5"`
-		Voltage_3v   int    `json:"voltage_3"`
-		Serial       string `json:"serial"`
-		Version      uint16 `json:"version"`
-		Throttle     uint32 `json:"throttle"`
-		Ram_used     uint32 `json:"ram_u"`
-		Ram_total    uint32 `json:"ram_t"`
-		Max_current  uint16 `json:"max_current"`
-		WifiStrength int    `json:"wifi_strength"`
-		WifiRx       uint64 `json:"wifi_rx"`
-		WifiTx       uint64 `json:"wifi_tx"`
+		Fan           int    `json:"fan"`
+		CpuUsage      int    `json:"cpu"`
+		CpuFrequency  int    `json:"cpu_freq"` // MHz
+		Temperature   int    `json:"temp"`
+		Voltage_5v    int    `json:"voltage_5"`
+		Voltage_3v    int    `json:"voltage_3"`
+		Serial        string `json:"serial"`
+		Version       uint16 `json:"version"`
+		Throttle      uint32 `json:"throttle"`
+		Ram_used      uint32 `json:"ram_u"`
+		Ram_total     uint32 `json:"ram_t"`
+		Max_current   uint16 `json:"max_current"`
+		WifiStrength  int    `json:"wifi_strength"`
+		WifiRx        uint64 `json:"wifi_rx"`
+		WifiTx        uint64 `json:"wifi_tx"`
+		SerialRx      uint32 `json:"tty_rx"`
+		SerialTx      uint32 `json:"tty_tx"`
+		SerialCfgBaud uint32 `json:"tty_cfg"`
 	}
 	type status struct {
 		Version     string      `json:"version"`
@@ -178,6 +189,11 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	raspiDiskFree, raspiDiskTotal, _ := raspi.GetDiskSpace()
 	raspiMaxCurrent, _ := raspi.GetMaxCurrent()
 	raspiWifiStrength, raspiWifiRx, raspiWifiTx, _ := raspi.GetWifiInfo("wlan0")
+	var raspiSerialRx, raspiSerialTx uint64
+	var raspiSerialCfgBaud uint32
+	if ws.serMon != nil {
+		raspiSerialRx, raspiSerialTx, raspiSerialCfgBaud = ws.serMon.GetBaudRates()
+	}
 
 	dj := dataJson{
 		Config: config{
@@ -191,21 +207,24 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 				Total: raspiDiskTotal,
 			},
 			RaspiStatus: raspiStatus{
-				Fan:          raspiRpm,
-				CpuUsage:     int(raspiCpu),
-				CpuFrequency: int(raspiCpuFreq / 1000000),
-				Temperature:  raspiTemp / 100,
-				Voltage_5v:   raspiVoltage5,
-				Voltage_3v:   raspiVoltage3,
-				Serial:       raspiSerial,
-				Version:      raspiVersion,
-				Throttle:     raspiThrottle,
-				Ram_used:     raspiRamUsed,
-				Ram_total:    raspiRamTotal,
-				Max_current:  raspiMaxCurrent,
-				WifiStrength: raspiWifiStrength,
-				WifiRx:       raspiWifiRx,
-				WifiTx:       raspiWifiTx,
+				Fan:           raspiRpm,
+				CpuUsage:      int(raspiCpu),
+				CpuFrequency:  int(raspiCpuFreq / 1000000),
+				Temperature:   raspiTemp / 100,
+				Voltage_5v:    raspiVoltage5,
+				Voltage_3v:    raspiVoltage3,
+				Serial:        raspiSerial,
+				Version:       raspiVersion,
+				Throttle:      raspiThrottle,
+				Ram_used:      raspiRamUsed,
+				Ram_total:     raspiRamTotal,
+				Max_current:   raspiMaxCurrent,
+				WifiStrength:  raspiWifiStrength,
+				WifiRx:        raspiWifiRx,
+				WifiTx:        raspiWifiTx,
+				SerialRx:      uint32(raspiSerialRx),
+				SerialTx:      uint32(raspiSerialTx),
+				SerialCfgBaud: raspiSerialCfgBaud,
 			},
 		},
 		Data: data,

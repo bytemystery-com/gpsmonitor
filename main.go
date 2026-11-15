@@ -42,6 +42,7 @@ import (
 	"gpsmonitord/cfg"
 	"gpsmonitord/data"
 	"gpsmonitord/gps"
+	"gpsmonitord/raspi"
 	"gpsmonitord/webserver"
 
 	"go.bug.st/serial"
@@ -122,6 +123,10 @@ func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
 				Errors:       getUintForJsonFromAtomic(&Data.Gps.GpsSumData.Errors),
 			},
 			Sats: sats,
+			Version: webserver.WebGpsVersions{
+				Ublox: Data.Gps.GetUbxVersion(),
+				Qtm:   Data.Gps.GetQtmVersion(),
+			},
 		}
 		return &data
 	}
@@ -174,7 +179,7 @@ func main() {
 		for _, item := range ports2 {
 			log.Printf("Port: %v", item.Manufacturer)
 		}*/
-	mode := &serial.Mode{
+	mode := serial.Mode{
 		DataBits: Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_BITS, cfg.DEF_UART_DATA_BITS),
 		Parity:   serial.Parity(Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_PARITY, cfg.DEF_UART_PARITY)),
 		StopBits: serial.StopBits(Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_STOP_BITS, cfg.DEF_UART_STOP_BITS)),
@@ -184,19 +189,19 @@ func main() {
 	dev := Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV)
 	if baudRate == 0 {
 		// Auto detect
-		baudRates := []int{38400, 57600, 115200, 460800, 9600, 4800, 230400}
+		baudRates := []int{38400, 115200, 460800, 57600, 9600, 4800, 230400}
 		var port serial.Port
 		for _, br := range baudRates {
 			mode.BaudRate = br
 			if port == nil {
-				port, err = serial.Open(dev, mode)
+				port, err = serial.Open(dev, &mode)
 				if err != nil {
 					log.Printf("open port failed %v", err)
 					continue
 				}
 				port.SetReadTimeout(1200 * time.Millisecond)
 			} else {
-				port.SetMode(mode)
+				port.SetMode(&mode)
 			}
 			_ = port.ResetInputBuffer()
 			err = gps.TestGPSRead(port)
@@ -219,16 +224,18 @@ func main() {
 		return
 	}
 	mode.BaudRate = baudRate
-	port, err := serial.Open(dev, mode)
+	p, err := serial.Open(dev, &mode)
 	if err != nil {
 		log.Printf("open port failed %v", err)
 		return
 	}
+	port := raspi.NewCountedPort(p, mode)
+	Data.SerMon = port
 	g, err := gps.NewGps(port, port, func() {
 		port.ResetOutputBuffer()
 		port.ResetInputBuffer()
 	})
-	g.Trace = true
+	// g.Trace = true
 	if err != nil {
 		port.Close()
 		return
@@ -237,7 +244,7 @@ func main() {
 	go g.Start(nil)
 
 	var callBacks WebCallbacksImpl
-	Data.WebServer = webserver.NewWebServer(callBacks, Data.Config)
+	Data.WebServer = webserver.NewWebServer(callBacks, Data.Config, Data.SerMon)
 	webError := make(chan error, 2)
 	Data.WebServer.StartWebServer(webError)
 
