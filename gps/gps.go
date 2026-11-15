@@ -24,6 +24,9 @@
 
 // GPS NMEA Parser
 
+// sudo grep "^0:" /proc/tty/driver/ttyAMA && sleep 10 && sudo grep "^0:" /proc/tty/driver/ttyAMA
+// baud=$(sudo stty -F /dev/ttyAMA0 speed); r1=$(sudo awk '/^0:/ {for(i=1;i<=NF;i++) if($i~/^rx:/) print substr($i,4)}' /proc/tty/driver/ttyAMA); sleep 10; r2=$(sudo awk '/^0:/ {for(i=1;i<=NF;i++) if($i~/^rx:/) print substr($i,4)}' /proc/tty/driver/ttyAMA); bps=$(((r2-r1)/10)); min=$((bps*13)); rec=9600; for b in 9600 19200 38400 57600 115200 230400 460800; do [ $b -ge $min ] && rec=$b && break; done; echo "Aktuell: $baud Baud | Datenrate: $bps B/s | Auslastung: $((bps*1000/baud))% | Benötigt: min. $min bps -> Empfohlen: $rec Baud"
+
 package gps
 
 import (
@@ -815,6 +818,7 @@ type GpsData struct {
 	DiffStationId atomic.Uint32 // int
 	Messages      atomic.Value  // []string
 	IsReady       atomic.Bool   // bool
+	Errors        atomic.Uint32 // uint32
 }
 
 func (gps *GpsData) Print() {
@@ -874,6 +878,7 @@ func (gps *GpsData) init() {
 	gps.StdAltitude.Store(math.Float32bits(float32(math.NaN())))
 	gps.DiffAge.Store(math.Float32bits(float32(math.NaN())))
 	gps.DiffStationId.Store(^uint32(0))
+	gps.Errors.Store(0)
 }
 
 type Gps struct {
@@ -1093,7 +1098,7 @@ func (gps *Gps) parseGGA(sArray []string) (*GGA, error) {
 		TalkerId: sArray[0][1:3],
 	}
 
-	t, err := time.Parse("150405.00", sArray[1])
+	t, err := time.Parse("150405.999", sArray[1])
 	if err == nil {
 		g.Time = t
 	}
@@ -1153,7 +1158,7 @@ func (gps *Gps) parseRMC(sArray []string) (*RMC, error) {
 		TalkerId: sArray[0][1:3],
 	}
 
-	t, err := time.Parse("150405.00", sArray[1])
+	t, err := time.Parse("150405.999", sArray[1])
 	if err == nil {
 		r.DateTime = t
 	}
@@ -1193,7 +1198,7 @@ func (gps *Gps) parseRMC(sArray []string) (*RMC, error) {
 
 func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 	l := len(sArray)
-	if l != 9 {
+	if l != 9 && l != 8 {
 		return nil, fmt.Errorf("unexpected number of fields")
 	}
 	g := GLL{
@@ -1210,7 +1215,7 @@ func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 		g.Longitude = -g.Longitude
 	}
 
-	t, err := time.Parse("150405.00", sArray[5])
+	t, err := time.Parse("150405.999", sArray[5])
 	if err == nil {
 		g.Time = t
 	}
@@ -1219,7 +1224,9 @@ func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 		g.Valid = true
 	}
 
-	g.Quality = gps.getQualityFromLetter(sArray[12])
+	if l > 8 {
+		g.Quality = gps.getQualityFromLetter(sArray[7])
+	}
 
 	return &g, nil
 }
@@ -1379,193 +1386,198 @@ func (gps *Gps) parseNmea(line string) {
 	sArray, err := gps.verifyNmeaChecksum(line)
 	if err != nil {
 		log.Printf("!!!!! ----- Checksum error %v ----- !!!!!", err)
+		gps.GpsSumData.Errors.Add(1)
 		return
 	}
 	// log.Printf("Token: %s", sArray[0])
-	switch sArray[0][3:] {
-	case "GGA":
-		gga, err := gps.parseGGA(sArray)
-		if err == nil {
-			gps.appendMessage(gga)
+	if len(sArray[0]) > 3 {
+		switch sArray[0][3:] {
+		case "GGA":
+			gga, err := gps.parseGGA(sArray)
+			if err == nil {
+				gps.appendMessage(gga)
 
-			gps.UpdateTimeInAtomic(gga.Time, &gps.GpsSumData.Time)
-			gps.StoreFloat64InAtomic(gga.Latitude, &gps.GpsSumData.Latitude)
-			gps.StoreFloat64InAtomic(gga.Longitude, &gps.GpsSumData.Longitude)
-			gps.StoreIntInAtomic(int(gga.Quality), &gps.GpsSumData.Quality)
-			gps.StoreIntInAtomic(gga.NumSats, &gps.GpsSumData.NumSats)
-			gps.StoreFloat32InAtomic(gga.HDop, &gps.GpsSumData.HDop)
-			gps.StoreFloat32InAtomic(gga.Altitude, &gps.GpsSumData.Altitude)
-			gps.StoreFloat32InAtomic(gga.AltSep, &gps.GpsSumData.AltSep)
-			gps.StoreFloat32InAtomic(gga.DiffAge, &gps.GpsSumData.DiffAge)
-			gps.StoreIntInAtomic(gga.DiffStationId, &gps.GpsSumData.DiffStationId)
+				gps.UpdateTimeInAtomic(gga.Time, &gps.GpsSumData.Time)
+				gps.StoreFloat64InAtomic(gga.Latitude, &gps.GpsSumData.Latitude)
+				gps.StoreFloat64InAtomic(gga.Longitude, &gps.GpsSumData.Longitude)
+				gps.StoreIntInAtomic(int(gga.Quality), &gps.GpsSumData.Quality)
+				gps.StoreIntInAtomic(gga.NumSats, &gps.GpsSumData.NumSats)
+				gps.StoreFloat32InAtomic(gga.HDop, &gps.GpsSumData.HDop)
+				gps.StoreFloat32InAtomic(gga.Altitude, &gps.GpsSumData.Altitude)
+				gps.StoreFloat32InAtomic(gga.AltSep, &gps.GpsSumData.AltSep)
+				gps.StoreFloat32InAtomic(gga.DiffAge, &gps.GpsSumData.DiffAge)
+				gps.StoreIntInAtomic(gga.DiffStationId, &gps.GpsSumData.DiffStationId)
 
-			gps.SendNotify(gga)
-		}
-
-	case "RMC":
-		rmc, err := gps.parseRMC(sArray)
-		if err == nil {
-			gps.appendMessage(rmc)
-
-			if rmc.Valid {
-				gps.StoreTimeInAtomic(rmc.DateTime, &gps.GpsSumData.Time)
-			}
-			gps.StoreFloat64InAtomic(rmc.Latitude, &gps.GpsSumData.Latitude)
-			gps.StoreFloat64InAtomic(rmc.Longitude, &gps.GpsSumData.Longitude)
-			gps.StoreFloat32InAtomic(rmc.Speed, &gps.GpsSumData.Speed)
-			gps.StoreFloat32InAtomic(rmc.CourseTrue, &gps.GpsSumData.CourseTrue)
-			gps.StoreFloat32InAtomic(rmc.MagVar, &gps.GpsSumData.MagVar)
-			gps.StoreIntInAtomic(int(rmc.Quality), &gps.GpsSumData.Quality)
-
-			gps.SendNotify(rmc)
-		}
-
-	case "GLL":
-		gll, err := gps.parseGLL(sArray)
-		if err == nil {
-			gps.appendMessage(gll)
-
-			if gll.Valid {
-				gps.UpdateTimeInAtomic(gll.Time, &gps.GpsSumData.Time)
-				gps.StoreFloat64InAtomic(gll.Latitude, &gps.GpsSumData.Latitude)
-				gps.StoreFloat64InAtomic(gll.Longitude, &gps.GpsSumData.Longitude)
-				gps.StoreIntInAtomic(int(gll.Quality), &gps.GpsSumData.Quality)
+				gps.SendNotify(gga)
 			}
 
-			gps.SendNotify(gll)
-		}
+		case "RMC":
+			rmc, err := gps.parseRMC(sArray)
+			if err == nil {
+				gps.appendMessage(rmc)
 
-	case "GSA":
-		gsa, err := gps.parseGSA(sArray)
-		if err == nil {
-			gps.appendMessage(gsa)
-
-			gps.StoreIntInAtomic(int(gsa.NavMode), &gps.GpsSumData.NavMode)
-			gps.StoreFloat32InAtomic(gsa.Pdop, &gps.GpsSumData.PDop)
-			gps.StoreFloat32InAtomic(gsa.Vdop, &gps.GpsSumData.VDop)
-			gps.StoreFloat32InAtomic(gsa.Hdop, &gps.GpsSumData.HDop)
-
-			gps.satInfoLock.Lock()
-			for _, item := range gsa.SatDatas {
-				key := satKey{
-					id:      item.Id,
-					network: gsa.getNetwork(&item),
+				if rmc.Valid {
+					gps.StoreTimeInAtomic(rmc.DateTime, &gps.GpsSumData.Time)
 				}
-				info, ok := gps.satMap[key]
-				if !ok {
-					info = SatInfo{
-						Id:       item.Id,
-						Network:  key.network,
-						Strength: make(map[SignalId]StrengthValue, 5),
-						Azimuth:  -1,
-						Elev:     -1,
+				gps.StoreFloat64InAtomic(rmc.Latitude, &gps.GpsSumData.Latitude)
+				gps.StoreFloat64InAtomic(rmc.Longitude, &gps.GpsSumData.Longitude)
+				gps.StoreFloat32InAtomic(rmc.Speed, &gps.GpsSumData.Speed)
+				gps.StoreFloat32InAtomic(rmc.CourseTrue, &gps.GpsSumData.CourseTrue)
+				gps.StoreFloat32InAtomic(rmc.MagVar, &gps.GpsSumData.MagVar)
+				gps.StoreIntInAtomic(int(rmc.Quality), &gps.GpsSumData.Quality)
+
+				gps.SendNotify(rmc)
+			}
+
+		case "GLL":
+			gll, err := gps.parseGLL(sArray)
+			if err == nil {
+				gps.appendMessage(gll)
+
+				if gll.Valid {
+					gps.UpdateTimeInAtomic(gll.Time, &gps.GpsSumData.Time)
+					gps.StoreFloat64InAtomic(gll.Latitude, &gps.GpsSumData.Latitude)
+					gps.StoreFloat64InAtomic(gll.Longitude, &gps.GpsSumData.Longitude)
+					gps.StoreIntInAtomic(int(gll.Quality), &gps.GpsSumData.Quality)
+				}
+
+				gps.SendNotify(gll)
+			}
+
+		case "GSA":
+			gsa, err := gps.parseGSA(sArray)
+			if err == nil {
+				gps.appendMessage(gsa)
+
+				gps.StoreIntInAtomic(int(gsa.NavMode), &gps.GpsSumData.NavMode)
+				gps.StoreFloat32InAtomic(gsa.Pdop, &gps.GpsSumData.PDop)
+				gps.StoreFloat32InAtomic(gsa.Vdop, &gps.GpsSumData.VDop)
+				gps.StoreFloat32InAtomic(gsa.Hdop, &gps.GpsSumData.HDop)
+
+				gps.satInfoLock.Lock()
+				for _, item := range gsa.SatDatas {
+					key := satKey{
+						id:      item.Id,
+						network: gsa.getNetwork(&item),
 					}
-				}
-				info.Used = true
-				now := time.Now()
-				info.LastUsedUpdate = now
-				info.LastUpdate = now
-
-				gps.satMap[key] = info
-			}
-			gps.satInfoLock.Unlock()
-
-			gps.SendNotify(gsa)
-		}
-
-	case "VTG":
-		vtg, err := gps.parseVTG(sArray)
-		if err == nil {
-			gps.appendMessage(vtg)
-
-			gps.StoreFloat32InAtomic(vtg.CourseTrue, &gps.GpsSumData.CourseTrue)
-			gps.StoreFloat32InAtomic(vtg.Speed, &gps.GpsSumData.Speed)
-			gps.StoreIntInAtomic(int(vtg.Quality), &gps.GpsSumData.Quality)
-
-			gps.SendNotify(vtg)
-		}
-
-	case "GSV":
-		gsv, err := gps.parseGSV(sArray)
-		if err == nil {
-			gps.appendMessage(gsv)
-			gps.satInfoLock.Lock()
-			for _, item := range gsv.Sats {
-				key := satKey{
-					id:      item.Id,
-					network: gsv.getNetwork(&item),
-				}
-				info, ok := gps.satMap[key]
-				if !ok {
-					info = SatInfo{
-						Id:       item.Id,
-						Network:  key.network,
-						Strength: make(map[SignalId]StrengthValue, 5),
+					info, ok := gps.satMap[key]
+					if !ok {
+						info = SatInfo{
+							Id:       item.Id,
+							Network:  key.network,
+							Strength: make(map[SignalId]StrengthValue, 5),
+							Azimuth:  -1,
+							Elev:     -1,
+						}
 					}
+					info.Used = true
+					now := time.Now()
+					info.LastUsedUpdate = now
+					info.LastUpdate = now
+
+					gps.satMap[key] = info
 				}
-				info.Strength[GetSignalId(gsv.SignalId, key.network)] = StrengthValue{Val: item.Strength}
-				info.Elev = item.Elev
-				info.Azimuth = item.Azimuth
-				info.LastUpdate = time.Now()
-				gps.satMap[key] = info
+				gps.satInfoLock.Unlock()
+
+				gps.SendNotify(gsa)
 			}
-			gps.satInfoLock.Unlock()
-			gps.SendNotify(gsv)
-		}
 
-	case "TXT":
-		txt, err := gps.parseTXT(sArray)
-		if err == nil {
-			gps.appendMessage(txt)
-			gps.AddStringToSliceInAtomic(txt.Txt, 20, &gps.GpsSumData.Messages)
-			gps.SendNotify(txt)
-		}
+		case "VTG":
+			vtg, err := gps.parseVTG(sArray)
+			if err == nil {
+				gps.appendMessage(vtg)
 
-	case "GST":
-		gst, err := gps.parseGST(sArray)
-		if err == nil {
-			gps.appendMessage(gst)
+				gps.StoreFloat32InAtomic(vtg.CourseTrue, &gps.GpsSumData.CourseTrue)
+				gps.StoreFloat32InAtomic(vtg.Speed, &gps.GpsSumData.Speed)
+				gps.StoreIntInAtomic(int(vtg.Quality), &gps.GpsSumData.Quality)
 
-			gps.UpdateTimeInAtomic(gst.Time, &gps.GpsSumData.Time)
-			gps.StoreFloat32InAtomic(gst.Rms, &gps.GpsSumData.Rms)
-			gps.StoreFloat32InAtomic(gst.StdMajor, &gps.GpsSumData.StdMajor)
-			gps.StoreFloat32InAtomic(gst.StdMinor, &gps.GpsSumData.StdMinor)
-			gps.StoreFloat32InAtomic(gst.Orientation, &gps.GpsSumData.Orientation)
-			gps.StoreFloat32InAtomic(gst.StdLatitude, &gps.GpsSumData.StdLatitude)
-			gps.StoreFloat32InAtomic(gst.StdLongitude, &gps.GpsSumData.StdLongitude)
-			gps.StoreFloat32InAtomic(gst.StdAltitude, &gps.GpsSumData.StdAltitude)
+				gps.SendNotify(vtg)
+			}
 
-			gps.SendNotify(gst)
-		}
-
-	default:
-		if sArray[0][1:2] == "P" {
-			token := sArray[0][2:]
-			switch {
-			case token == "QTMVERNO":
-				// Quectel version
-				log.Printf("Queltec version %v", sArray[1:])
-				v, err := gps.qtmParseVersion(sArray[1:])
-				if err != nil {
-					log.Printf("Unable to parse Queltec version !")
-				} else {
-					gps.SendNotify(*v)
-					gps.qtmVersion = v
+		case "GSV":
+			gsv, err := gps.parseGSV(sArray)
+			if err == nil {
+				gps.appendMessage(gsv)
+				gps.satInfoLock.Lock()
+				for _, item := range gsv.Sats {
+					key := satKey{
+						id:      item.Id,
+						network: gsv.getNetwork(&item),
+					}
+					info, ok := gps.satMap[key]
+					if !ok {
+						info = SatInfo{
+							Id:       item.Id,
+							Network:  key.network,
+							Strength: make(map[SignalId]StrengthValue, 5),
+						}
+					}
+					info.Strength[GetSignalId(gsv.SignalId, key.network)] = StrengthValue{Val: item.Strength}
+					info.Elev = item.Elev
+					info.Azimuth = item.Azimuth
+					info.LastUpdate = time.Now()
+					gps.satMap[key] = info
 				}
-			case strings.HasPrefix(token, "AIR"): // Airoha
-				log.Printf("Airoha private token '%s'", sArray[0])
-			case strings.HasPrefix(token, "QTM"): // Quectel
-				log.Printf("Quectel private token '%s'", sArray[0])
-			case strings.HasPrefix(token, "UBX"): // u-blox
-				log.Printf("u-blox private token '%s'", sArray[0])
-			case strings.HasPrefix(token, "MTK"): // MediaTek
-				log.Printf("MediaTek private token '%s'", sArray[0])
-			default:
-				log.Printf("Unkwon private token '%s'", sArray[0])
+				gps.satInfoLock.Unlock()
+				gps.SendNotify(gsv)
 			}
-		} else {
-			log.Printf("Unknownn token: %s", sArray[0])
+
+		case "TXT":
+			txt, err := gps.parseTXT(sArray)
+			if err == nil {
+				gps.appendMessage(txt)
+				gps.AddStringToSliceInAtomic(txt.Txt, 20, &gps.GpsSumData.Messages)
+				gps.SendNotify(txt)
+			}
+
+		case "GST":
+			gst, err := gps.parseGST(sArray)
+			if err == nil {
+				gps.appendMessage(gst)
+
+				gps.UpdateTimeInAtomic(gst.Time, &gps.GpsSumData.Time)
+				gps.StoreFloat32InAtomic(gst.Rms, &gps.GpsSumData.Rms)
+				gps.StoreFloat32InAtomic(gst.StdMajor, &gps.GpsSumData.StdMajor)
+				gps.StoreFloat32InAtomic(gst.StdMinor, &gps.GpsSumData.StdMinor)
+				gps.StoreFloat32InAtomic(gst.Orientation, &gps.GpsSumData.Orientation)
+				gps.StoreFloat32InAtomic(gst.StdLatitude, &gps.GpsSumData.StdLatitude)
+				gps.StoreFloat32InAtomic(gst.StdLongitude, &gps.GpsSumData.StdLongitude)
+				gps.StoreFloat32InAtomic(gst.StdAltitude, &gps.GpsSumData.StdAltitude)
+
+				gps.SendNotify(gst)
+			}
+
+		default:
+			if sArray[0][1:2] == "P" {
+				token := sArray[0][2:]
+				switch {
+				case token == "QTMVERNO":
+					// Quectel version
+					log.Printf("Queltec version %v", sArray[1:])
+					v, err := gps.qtmParseVersion(sArray[1:])
+					if err != nil {
+						log.Printf("Unable to parse Queltec version !")
+					} else {
+						gps.SendNotify(*v)
+						gps.qtmVersion = v
+					}
+				case strings.HasPrefix(token, "AIR"): // Airoha
+					log.Printf("Airoha private token '%s'", sArray[0])
+				case strings.HasPrefix(token, "QTM"): // Quectel
+					log.Printf("Quectel private token '%s'", sArray[0])
+				case strings.HasPrefix(token, "UBX"): // u-blox
+					log.Printf("u-blox private token '%s'", sArray[0])
+				case strings.HasPrefix(token, "MTK"): // MediaTek
+					log.Printf("MediaTek private token '%s'", sArray[0])
+				default:
+					log.Printf("Unkwon private token '%s'", sArray[0])
+				}
+			} else {
+				log.Printf("Unknownn token: %s", sArray[0])
+			}
 		}
+	} else {
+		log.Printf("No GPS token: %v", sArray)
 	}
 }
 
@@ -1768,7 +1780,6 @@ func (gps *Gps) parseUBXVer(payLoad []byte) (*UBXVer, error) {
 }
 
 func (gps *Gps) sendUBXCfg() {
-	// gps.SendUBXConfig(0x01, 0x40520001, 115200)
 	gps.UBXSendConfig(0x01,
 		// UBXConfig{Key: 0x40520001, Value: 115200},
 		UBXConfig{Key: 0x20930007, Value: 1}, // Extended einschalten
@@ -1914,7 +1925,16 @@ func (gps *Gps) qtmSwitchOnGST() error {
 	return fmt.Errorf("no version information available")
 }
 
+func (gps *Gps) qtmSetBaudrate(baudRate int) {
+	gps.writer.Write([]byte(gps.buildNmeaCmd(fmt.Sprintf("$PAIR864,0,0,%d", baudRate))))
+	time.Sleep(250 * time.Millisecond)
+	gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR513")))
+	time.Sleep(250 * time.Millisecond)
+	gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR006")))
+}
+
 func (gps *Gps) qtmSendCfg() {
+	// gps.qtmSetBaudrate(115200)
 	gps.qtmSwitchOnGST()
 	gps.qtmSwitchOffPPS()
 }

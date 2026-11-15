@@ -84,7 +84,7 @@ const (
 	DEF_WEBSERVER_KEY_FILE          = "/etc/gpsmonitord/certs/gpsmonitord.key"
 	DEF_WEBSERVER_CERT_FILE         = "/etc/gpsmonitord/certs/gpsmonitord.crt"
 	DEF_UART_DEV                    = "/dev/ttyAMA0"
-	DEF_UART_BAUD_RATE              = 0 // auto
+	DEF_UART_BAUD_RATE              = 0 // 115200 // 57600 // 115200 // 38400, 460800, 115200, 9600, 4800, 57600, 230400
 	DEF_UART_DATA_BITS              = 8
 	DEF_UART_PARITY                 = 0
 	DEF_UART_STOP_BITS              = 0

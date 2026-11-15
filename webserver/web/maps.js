@@ -195,7 +195,7 @@ class OpenStreetMap {
             // attribution: '&copy; OpenStreetMap contributors | CyclOSM'
         });
 
-        const ttaceTrack = L.tileLayer('https://tile.tracestrack.com/_/{z}/{x}/{y}.webp?key=d9e7bba145b76f2ece9f8372b66f037e82e65139dfbb8e84', {
+        const traceTrack = L.tileLayer('https://tile.tracestrack.com/_/{z}/{x}/{y}.webp?key=d9e7bba145b76f2ece9f8372b66f037e82e65139dfbb8e84', {
             maxNativeZoom: 19,
             tileSize: 512,
             zoomOffset: -1,
@@ -214,7 +214,7 @@ class OpenStreetMap {
             "Voyager": voyager,
             "HOT": hot,
             "CyclOSM (Radwege)": cyclosm,
-            "Trace Track": ttaceTrack,
+            "Trace Track": traceTrack,
         }).addTo(this.map);
 
         this.marker = L.marker([0.0, 0.0]).addTo(this.map);

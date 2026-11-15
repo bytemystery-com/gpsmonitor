@@ -77,6 +77,7 @@ type WebDataGps struct {
 	VDop         *float32   `json:"vd"`
 	PDop         *float32   `json:"pd"`
 	DateTime     *time.Time `json:"dt"`
+	Errors       *uint32    `json:"er"`
 }
 
 type WebDataAll struct {
@@ -130,6 +131,11 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 		UpdateInterval int `json:"update_interval"`
 	}
 
+	type sd struct {
+		Free  uint64 `json:"free"`
+		Total uint64 `json:"total"`
+	}
+
 	type raspiStatus struct {
 		Fan          int    `json:"fan"`
 		CpuUsage     int    `json:"cpu"`
@@ -150,6 +156,7 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	type status struct {
 		Version     string      `json:"version"`
 		Uptime      string      `json:"uptime"`
+		Sd          sd          `json:"sd"`
 		RaspiStatus raspiStatus `json:"raspi"`
 	}
 
@@ -168,6 +175,7 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 	raspiThrottle, _ := raspi.GetThrottled()
 	raspiSerial, _ := raspi.GetSerial()
 	raspiRamUsed, raspiRamTotal, _ := raspi.GetRam()
+	raspiDiskFree, raspiDiskTotal, _ := raspi.GetDiskSpace()
 	raspiMaxCurrent, _ := raspi.GetMaxCurrent()
 	raspiWifiStrength, raspiWifiRx, raspiWifiTx, _ := raspi.GetWifiInfo("wlan0")
 
@@ -178,6 +186,10 @@ func (ws *WebServer) getUpdate(w http.ResponseWriter, _ *http.Request) {
 		Status: status{
 			Version: cfg.GPS_MONITOR_VERSION,
 			Uptime:  ws.getUptime(),
+			Sd: sd{
+				Free:  raspiDiskFree,
+				Total: raspiDiskTotal,
+			},
 			RaspiStatus: raspiStatus{
 				Fan:          raspiRpm,
 				CpuUsage:     int(raspiCpu),

@@ -69,6 +69,15 @@ func getFloat64ForJsonFromAtomic(val *atomic.Uint64) *float64 {
 	return &v
 }
 
+func getUintForJsonFromAtomic(val *atomic.Uint32) *uint32 {
+	v := val.Load()
+	if v == ^uint32(0) {
+		return nil
+	}
+	vi := uint32(v)
+	return &vi
+}
+
 func getIntForJsonFromAtomic(val *atomic.Uint32) *int {
 	v := val.Load()
 	if v == ^uint32(0) {
@@ -110,6 +119,7 @@ func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
 				VDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.VDop),
 				PDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.PDop),
 				DateTime:     getTimeForJsonFromAtomic(&Data.Gps.GpsSumData.Time),
+				Errors:       getUintForJsonFromAtomic(&Data.Gps.GpsSumData.Errors),
 			},
 			Sats: sats,
 		}
@@ -174,7 +184,7 @@ func main() {
 	dev := Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV)
 	if baudRate == 0 {
 		// Auto detect
-		baudRates := []int{38400, 460800, 115200, 9600, 4800, 57600, 230400}
+		baudRates := []int{38400, 57600, 115200, 460800, 9600, 4800, 230400}
 		var port serial.Port
 		for _, br := range baudRates {
 			mode.BaudRate = br
@@ -218,7 +228,7 @@ func main() {
 		port.ResetOutputBuffer()
 		port.ResetInputBuffer()
 	})
-	// g.Trace = true
+	g.Trace = true
 	if err != nil {
 		port.Close()
 		return

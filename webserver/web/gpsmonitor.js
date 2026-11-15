@@ -189,6 +189,16 @@ function doPeriodic()
 						setValue("sysstat_ram", "sysstat_tr_ram", raspi.ram_u, (val) => kB2Str(val) + " / " + kB2Str(raspi.ram_t));
 					else 
 						hideElement("sysstat_tr_ram")
+					if (json.status.sd !== undefined)
+					{
+						if ((tmp = document.getElementById("sysstat_sd")))
+							tmp.textContent = kB2Str(json.status.sd.free) + " / " + kB2Str(json.status.sd.total);
+					}
+					else
+					{
+						if ((tmp = document.getElementById("sysstat_tr_sd")))
+							tmp.style.display = 'none';
+					}
 					if (raspi.wifi_strength !== undefined && raspi.wifi_rx !== undefined && raspi.wifi_tx !== undefined)
 						setValue("sysstat_wifi", "sysstat_tr_wifi", raspi.wifi_strength, (val) => val + " dBm / " + kB2Str(raspi.wifi_rx + raspi.wifi_tx));
 					else
@@ -198,6 +208,7 @@ function doPeriodic()
 				setValue("summary_version", "summary_tr_version", json.status.version, null);
 				if (json.data?.gps !== undefined) {
 					const gps = json.data.gps
+					console.log(gps)
 					setValue("summary_latitude", "summary_tr_latitude", gps.la, (val) => val.toFixed(6));
 					setValue("summary_longitude", "summary_tr_longitude", gps.lo, (val) => val.toFixed(6));
 					setValue("summary_height", "summary_tr_height", gps.al, (val) => val.toFixed(1) + " m");
@@ -312,7 +323,7 @@ function doPeriodic()
 						setValue("summary_vdop", "summary_tr_vdop", gps.vd, (val) => val.toFixed(2));
 						setValue("summary_hdop", "summary_tr_hdop", gps.hd, (val) => val.toFixed(2));
 						setValue("summary_pdop", "summary_tr_pdop", gps.pd, (val) => val.toFixed(2));
-
+						setValue("summary_errors", "summary_tr_errors", gps.er, (val) => val);
 					}
 					setValue("summary_date", "summary_tr_date", gps.dt, (val) => {
 						const date = new Date(val);
@@ -349,7 +360,7 @@ function doPeriodic()
 }
 
 function UpdateMap(la, lo) {
-	if (isDefined('usedMap'))
+	if (la != null && lo != null && isDefined('usedMap'))
 		usedMap.SetPosition(la, lo);
 }
 
