@@ -1570,15 +1570,15 @@ func (gps *Gps) parseNmea(line string) {
 						gps.qtmVersion = v
 					}
 				case strings.HasPrefix(token, "AIR"): // Airoha
-					log.Printf("Airoha private token '%s'", sArray[0])
+					log.Printf("Airoha private token '%s' - %v", sArray[0], sArray)
 				case strings.HasPrefix(token, "QTM"): // Quectel
-					log.Printf("Quectel private token '%s'", sArray[0])
+					log.Printf("Quectel private token '%s' - %v", sArray[0], sArray)
 				case strings.HasPrefix(token, "UBX"): // u-blox
-					log.Printf("u-blox private token '%s'", sArray[0])
+					log.Printf("u-blox private token '%s - %v'", sArray[0], sArray)
 				case strings.HasPrefix(token, "MTK"): // MediaTek
-					log.Printf("MediaTek private token '%s'", sArray[0])
+					log.Printf("MediaTek private token '%s - %v'", sArray[0], sArray)
 				default:
-					log.Printf("Unkwon private token '%s'", sArray[0])
+					log.Printf("Unkwon private token '%s - %v'", sArray[0], sArray)
 				}
 			} else {
 				log.Printf("Unknownn token: %s", sArray[0])
