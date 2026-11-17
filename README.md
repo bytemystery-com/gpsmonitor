@@ -39,8 +39,8 @@ License: MIT
 
 ![alt text](/doc/fotos/m9n.jpg "M9N receiver")
 ![alt text](/doc/fotos/m10s.jpg "M10S receiver")
-![alt text](/doc/fotos/lc79hea.jpg "LC29HEA receiver")
-![alt text](/doc/fotos/lc79haa.jpg "LC29HAA receiver")
+![alt text](/doc/fotos/lc29hea.jpg "LC29HEA receiver")
+![alt text](/doc/fotos/lc29haa.jpg "LC29HAA receiver")
 
 ## Screenshots
 
