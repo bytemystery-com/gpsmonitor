@@ -70,12 +70,12 @@ func getFloat64ForJsonFromAtomic(val *atomic.Uint64) *float64 {
 	return &v
 }
 
-func getUintForJsonFromAtomic(val *atomic.Uint32) *uint32 {
+func getUintForJsonFromAtomic[T ~uint32 | ~uint64](val interface{ Load() T }) *T {
 	v := val.Load()
-	if v == ^uint32(0) {
+	if v == ^T(0) {
 		return nil
 	}
-	vi := uint32(v)
+	vi := T(v)
 	return &vi
 }
 
@@ -121,6 +121,7 @@ func (w WebCallbacksImpl) GetData() *webserver.WebDataAll {
 				PDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.PDop),
 				DateTime:     getTimeForJsonFromAtomic(&Data.Gps.GpsSumData.Time),
 				Errors:       getUintForJsonFromAtomic(&Data.Gps.GpsSumData.Errors),
+				Sentences:    getUintForJsonFromAtomic(&Data.Gps.GpsSumData.Sentences),
 			},
 			Sats: sats,
 			Version: webserver.WebGpsVersions{

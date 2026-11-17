@@ -819,6 +819,7 @@ type GpsData struct {
 	Messages      atomic.Value  // []string
 	IsReady       atomic.Bool   // bool
 	Errors        atomic.Uint32 // uint32
+	Sentences     atomic.Uint64 // uint64
 }
 
 func (gps *GpsData) Print() {
@@ -847,6 +848,7 @@ func (gps *GpsData) Print() {
 	log.Printf("  StdAltitude   : %.1f m", math.Float32frombits(gps.StdAltitude.Load()))
 	log.Printf("  DiffAge       : %.1f s", math.Float32frombits(gps.DiffAge.Load()))
 	log.Printf("  DiffStationId : %d", gps.DiffStationId.Load())
+	log.Printf("  Sentences : %d", gps.Sentences.Load())
 	log.Printf("  Messages:")
 	m, _ := gps.Messages.Load().([]string)
 	for _, item := range m {
@@ -1360,7 +1362,7 @@ func (gps *Gps) parseGST(sArray []string) (*GST, error) {
 		TalkerId: sArray[0][1:3],
 	}
 
-	t, err := time.Parse("150405.00", sArray[1])
+	t, err := time.Parse("150405.999", sArray[1])
 	if err == nil {
 		g.Time = t
 	}
@@ -1419,6 +1421,7 @@ func (gps *Gps) parseNmea(line string) {
 				gps.StoreFloat32InAtomic(gga.AltSep, &gps.GpsSumData.AltSep)
 				gps.StoreFloat32InAtomic(gga.DiffAge, &gps.GpsSumData.DiffAge)
 				gps.StoreIntInAtomic(gga.DiffStationId, &gps.GpsSumData.DiffStationId)
+				gps.GpsSumData.Sentences.Add(1)
 
 				gps.SendNotify(gga)
 			}
@@ -1437,6 +1440,7 @@ func (gps *Gps) parseNmea(line string) {
 				gps.StoreFloat32InAtomic(rmc.CourseTrue, &gps.GpsSumData.CourseTrue)
 				gps.StoreFloat32InAtomic(rmc.MagVar, &gps.GpsSumData.MagVar)
 				gps.StoreIntInAtomic(int(rmc.Quality), &gps.GpsSumData.Quality)
+				gps.GpsSumData.Sentences.Add(1)
 
 				gps.SendNotify(rmc)
 			}
@@ -1452,6 +1456,7 @@ func (gps *Gps) parseNmea(line string) {
 					gps.StoreFloat64InAtomic(gll.Longitude, &gps.GpsSumData.Longitude)
 					gps.StoreIntInAtomic(int(gll.Quality), &gps.GpsSumData.Quality)
 				}
+				gps.GpsSumData.Sentences.Add(1)
 
 				gps.SendNotify(gll)
 			}
@@ -1490,6 +1495,7 @@ func (gps *Gps) parseNmea(line string) {
 					gps.satMap[key] = info
 				}
 				gps.satInfoLock.Unlock()
+				gps.GpsSumData.Sentences.Add(1)
 
 				gps.SendNotify(gsa)
 			}
@@ -1502,6 +1508,7 @@ func (gps *Gps) parseNmea(line string) {
 				gps.StoreFloat32InAtomic(vtg.CourseTrue, &gps.GpsSumData.CourseTrue)
 				gps.StoreFloat32InAtomic(vtg.Speed, &gps.GpsSumData.Speed)
 				gps.StoreIntInAtomic(int(vtg.Quality), &gps.GpsSumData.Quality)
+				gps.GpsSumData.Sentences.Add(1)
 
 				gps.SendNotify(vtg)
 			}
@@ -1531,6 +1538,8 @@ func (gps *Gps) parseNmea(line string) {
 					gps.satMap[key] = info
 				}
 				gps.satInfoLock.Unlock()
+				gps.GpsSumData.Sentences.Add(1)
+
 				gps.SendNotify(gsv)
 			}
 
@@ -1539,6 +1548,8 @@ func (gps *Gps) parseNmea(line string) {
 			if err == nil {
 				gps.appendMessage(txt)
 				gps.AddStringToSliceInAtomic(txt.Txt, 20, &gps.GpsSumData.Messages)
+				gps.GpsSumData.Sentences.Add(1)
+
 				gps.SendNotify(txt)
 			}
 
@@ -1555,6 +1566,7 @@ func (gps *Gps) parseNmea(line string) {
 				gps.StoreFloat32InAtomic(gst.StdLatitude, &gps.GpsSumData.StdLatitude)
 				gps.StoreFloat32InAtomic(gst.StdLongitude, &gps.GpsSumData.StdLongitude)
 				gps.StoreFloat32InAtomic(gst.StdAltitude, &gps.GpsSumData.StdAltitude)
+				gps.GpsSumData.Sentences.Add(1)
 
 				gps.SendNotify(gst)
 			}
@@ -1584,6 +1596,8 @@ func (gps *Gps) parseNmea(line string) {
 				default:
 					log.Printf("Unkwon private token '%s - %v'", sArray[0], sArray)
 				}
+
+				gps.GpsSumData.Sentences.Add(1)
 			} else {
 				log.Printf("Unknownn token: %s", sArray[0])
 			}
@@ -1976,15 +1990,65 @@ func (gps *Gps) qtmSwitchOnGST() error {
 	return fmt.Errorf("no version information available")
 }
 
-func (gps *Gps) qtmSetBaudrate(baudRate int) {
-	gps.writer.Write([]byte(gps.buildNmeaCmd(fmt.Sprintf("$PAIR864,0,0,%d", baudRate))))
+func (gps *Gps) qtmSetUpdateRate() error {
+	if gps.qtmVersion != nil {
+		s := ""
+		switch gps.qtmVersion.Model {
+		case QTM_LC29HAA, QTM_LC29HEA:
+			s = gps.buildNmeaCmd("$PAIR050,1000")
+		default:
+			return fmt.Errorf("no support")
+		}
+		if s != "" {
+			_, err := gps.writer.Write([]byte(s))
+			if err != nil {
+				return err
+			}
+			time.Sleep(250 * time.Millisecond)
+			err = gps.qtmSave()
+			if err != nil {
+				return err
+			}
+			return gps.qtmReboot()
+		}
+	}
+	return fmt.Errorf("no version information available")
+}
+
+func (gps *Gps) qtmReboot() error {
+	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR023")))
+	if err != nil {
+		return err
+	}
 	time.Sleep(250 * time.Millisecond)
-	gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR513")))
+	return nil
+}
+
+func (gps *Gps) qtmSave() error {
+	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR513")))
+	if err != nil {
+		return err
+	}
 	time.Sleep(250 * time.Millisecond)
-	gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR006")))
+	return nil
+}
+
+func (gps *Gps) qtmSetBaudrate(baudRate int) error {
+	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(fmt.Sprintf("$PAIR864,0,0,%d", baudRate))))
+	if err != nil {
+		return err
+	}
+	time.Sleep(250 * time.Millisecond)
+	err = gps.qtmSave()
+	if err != nil {
+		return err
+	}
+	time.Sleep(250 * time.Millisecond)
+	return gps.qtmReboot()
 }
 
 func (gps *Gps) qtmSendCfg() {
+	// gps.qtmSetUpdateRate()
 	// gps.qtmSetBaudrate(115200)
 	gps.qtmSwitchOnGST()
 	gps.qtmSwitchOffPPS()

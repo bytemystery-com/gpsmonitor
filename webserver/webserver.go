@@ -78,6 +78,7 @@ type WebDataGps struct {
 	PDop         *float32   `json:"pd"`
 	DateTime     *time.Time `json:"dt"`
 	Errors       *uint32    `json:"er"`
+	Sentences    *uint64    `json:"se"`
 }
 
 type WebGpsVersions struct {

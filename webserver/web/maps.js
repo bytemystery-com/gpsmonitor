@@ -212,7 +212,7 @@ class OpenStreetMap {
             "Positron (hell)": positron,
             "Dark Matter (dunkel)": dark,
             "Voyager": voyager,
-            "HOT": hot,
+            "Humanitarian": hot,
             "CyclOSM (Radwege)": cyclosm,
             "Trace Track": traceTrack,
         }).addTo(this.map);
