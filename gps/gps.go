@@ -1241,7 +1241,7 @@ func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 
 func (gps *Gps) parseGSA(sArray []string) (*GSA, error) {
 	l := len(sArray)
-	if l != 19 {
+	if l != 19 && l != 18 {
 		return nil, fmt.Errorf("unexpected number of fields")
 	}
 	g := GSA{
@@ -1269,8 +1269,9 @@ func (gps *Gps) parseGSA(sArray []string) (*GSA, error) {
 
 	g.Vdop = gps.parseFloat32(sArray[17])
 
-	g.SystemId = gps.parseInt(sArray[18])
-
+	if l > 18 {
+		g.SystemId = gps.parseInt(sArray[l-1])
+	}
 	return &g, nil
 }
 
@@ -1313,6 +1314,9 @@ func (gps *Gps) parseGSV(sArray []string) (*GSV, error) {
 	g.NumSat = gps.parseInt(sArray[3])
 
 	n := (l - 5) / 4
+	if (l-5)%4 != 0 {
+		return nil, fmt.Errorf("invalid GSV field count: %d", l)
+	}
 	for i := range n {
 		d := SatDataDetail{
 			Id:       gps.parseInt(sArray[4+i*4]),
@@ -1322,7 +1326,7 @@ func (gps *Gps) parseGSV(sArray []string) (*GSV, error) {
 		}
 		g.Sats = append(g.Sats, d)
 	}
-	g.SignalId = gps.parseInt(sArray[4+n*4])
+	g.SignalId = gps.parseInt(sArray[l-1])
 
 	return &g, nil
 }
