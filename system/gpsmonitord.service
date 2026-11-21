@@ -6,7 +6,9 @@ After=network.target
 Type=simple
 EnvironmentFile=-/etc/default/gpsmonitord.env
 ExecStart=/usr/local/bin/gpsmonitord
-Restart=on-failure
+Restart=always
+RestartSec=5
+
 
 [Install]
 WantedBy=multi-user.target
