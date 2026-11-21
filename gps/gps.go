@@ -2105,7 +2105,7 @@ func (gps *Gps) qtmGetSatCfg() error {
 
 func (gps *Gps) qtmSendCfg() {
 	// gps.qtmSetUpdateRate()
-	// gps.qtmSetBaudrate(115200)
+	// gps.qtmSetBaudrate(38400)
 	// gps.qtmSetSatCfg()
 	gps.qtmGetSatCfg()
 
