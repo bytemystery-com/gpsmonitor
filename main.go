@@ -180,6 +180,7 @@ func main() {
 		for _, item := range ports2 {
 			log.Printf("Port: %v", item.Manufacturer)
 		}*/
+begin:
 	mode := serial.Mode{
 		DataBits: Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_BITS, cfg.DEF_UART_DATA_BITS),
 		Parity:   serial.Parity(Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_DATA_PARITY, cfg.DEF_UART_PARITY)),
@@ -188,7 +189,7 @@ func main() {
 
 	baudRate := Data.Config.GetIntValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_BAUD_RATE, cfg.DEF_UART_BAUD_RATE)
 	dev := Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV)
-	if baudRate == 0 {
+	if baudRate <= 0 {
 		// Auto detect
 		baudRates := []int{38400, 115200, 460800, 57600, 9600, 4800, 230400}
 		var port serial.Port
@@ -220,10 +221,16 @@ func main() {
 		}
 	}
 
-	if baudRate == 0 {
+	if baudRate <= 0 {
 		log.Printf("No valid baud rate found")
-		return
+		if baudRate < 0 {
+			time.Sleep(1000 * time.Millisecond)
+			goto begin
+		} else {
+			return
+		}
 	}
+
 	mode.BaudRate = baudRate
 	p, err := serial.Open(dev, &mode)
 	if err != nil {

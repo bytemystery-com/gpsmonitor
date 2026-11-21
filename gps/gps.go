@@ -1575,24 +1575,30 @@ func (gps *Gps) parseNmea(line string) {
 			if sArray[0][1:2] == "P" {
 				token := sArray[0][2:]
 				switch {
-				case token == "QTMVERNO":
-					// Quectel version
-					log.Printf("Queltec version %v", sArray[1:])
-					v, err := gps.qtmParseVersion(sArray[1:])
-					if err != nil {
-						log.Printf("Unable to parse Queltec version !")
-					} else {
-						gps.SendNotify(*v)
-						gps.qtmVersion = v
-					}
 				case strings.HasPrefix(token, "AIR"): // Airoha
 					log.Printf("Airoha private token '%s' - %v", sArray[0], sArray)
+
 				case strings.HasPrefix(token, "QTM"): // Quectel
 					log.Printf("Quectel private token '%s' - %v", sArray[0], sArray)
+					switch token {
+					case "QTMVERNO":
+						// Quectel version
+						log.Printf("Queltec version %v", sArray[1:])
+						v, err := gps.qtmParseVersion(sArray[1:])
+						if err != nil {
+							log.Printf("Unable to parse Queltec version !")
+						} else {
+							gps.SendNotify(*v)
+							gps.qtmVersion = v
+						}
+					}
+
 				case strings.HasPrefix(token, "UBX"): // u-blox
 					log.Printf("u-blox private token '%s - %v'", sArray[0], sArray)
+
 				case strings.HasPrefix(token, "MTK"): // MediaTek
 					log.Printf("MediaTek private token '%s - %v'", sArray[0], sArray)
+
 				default:
 					log.Printf("Unkwon private token '%s - %v'", sArray[0], sArray)
 				}
@@ -2033,6 +2039,15 @@ func (gps *Gps) qtmSave() error {
 	return nil
 }
 
+func (gps *Gps) qtmSaveQtm() error {
+	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMSAVEPAR")))
+	if err != nil {
+		return err
+	}
+	time.Sleep(250 * time.Millisecond)
+	return nil
+}
+
 func (gps *Gps) qtmSetBaudrate(baudRate int) error {
 	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(fmt.Sprintf("$PAIR864,0,0,%d", baudRate))))
 	if err != nil {
@@ -2047,9 +2062,53 @@ func (gps *Gps) qtmSetBaudrate(baudRate int) error {
 	return gps.qtmReboot()
 }
 
+func (gps *Gps) qtmSetSatCfg() error {
+	if gps.qtmVersion != nil {
+		str := ""
+		switch gps.qtmVersion.Model {
+		case QTM_LC29HAA:
+			str = "$PQTMCFGCNST,W,1,1,1,1,1,1" // all
+		case QTM_LC29HBA, QTM_LC29HCA, QTM_LC29HDA, QTM_LC29HEA:
+			str = "$PQTMCFGCNST,W,1,1,1,1,1,0"
+		}
+
+		if str != "" {
+			_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(str)))
+			if err != nil {
+				return err
+			}
+			time.Sleep(250 * time.Millisecond)
+			err = gps.qtmSaveQtm()
+			if err != nil {
+				return err
+			}
+			return gps.qtmReboot()
+		} else {
+			return fmt.Errorf("not available")
+		}
+	} else {
+		return fmt.Errorf("not version available")
+	}
+}
+
+func (gps *Gps) qtmGetSatCfg() error {
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("PQTMCFGCNST,R")))
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("version not available")
+	}
+	return nil
+}
+
 func (gps *Gps) qtmSendCfg() {
 	// gps.qtmSetUpdateRate()
 	// gps.qtmSetBaudrate(115200)
+	// gps.qtmSetSatCfg()
+	gps.qtmGetSatCfg()
+
 	gps.qtmSwitchOnGST()
 	gps.qtmSwitchOffPPS()
 }
