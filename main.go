@@ -243,7 +243,8 @@ begin:
 		port.ResetOutputBuffer()
 		port.ResetInputBuffer()
 	})
-	// g.Trace = true
+	g.Trace = Data.Config.GetBoolValue(cfg.SECTION_SYSTEM, cfg.KEY_SYSTEM_GPS_TRACE, cfg.DEF_GPS_TRACE)
+
 	if err != nil {
 		port.Close()
 		return

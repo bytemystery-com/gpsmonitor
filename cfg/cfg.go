@@ -60,6 +60,7 @@ const (
 
 	SECTION_SYSTEM               = "system"
 	KEY_SYSTEM_RESTART_POFF_TIME = "PoweroffTime"
+	KEY_SYSTEM_GPS_TRACE         = "GpsTrace"
 
 	SECTION_HARDWARE            = "hardware"
 	KEY_HARDWARE_UART_DEV       = "UartDev"
@@ -89,6 +90,7 @@ const (
 	DEF_UART_PARITY                 = 0
 	DEF_UART_STOP_BITS              = 0
 	DEF_RESTART_POFF_TIME           = 60 // sec
+	DEF_GPS_TRACE                   = false
 )
 
 type Cfg struct {
@@ -243,6 +245,7 @@ func (c *Cfg) SetDeaultCfg() {
 	c.SetStringValue(SECTION_WEBSERVER, KEY_WEBSERVER_CERT_FILE, DEF_WEBSERVER_CERT_FILE, "The SSL cert file")
 
 	c.SetIntValue(SECTION_SYSTEM, KEY_SYSTEM_RESTART_POFF_TIME, DEF_RESTART_POFF_TIME, "Restart after restart command [sec]")
+	c.SetBoolValue(SECTION_SYSTEM, KEY_SYSTEM_GPS_TRACE, DEF_GPS_TRACE, "Trace GPS data sentences")
 
 	c.SetStringValue(SECTION_HARDWARE, KEY_HARDWARE_UART_DEV, DEF_UART_DEV, "UART device")
 	c.SetIntValue(SECTION_HARDWARE, KEY_HARDWARE_BAUD_RATE, DEF_UART_BAUD_RATE, "Baudrate (0=auto, 9600, 38400, 115200, 460800)")
