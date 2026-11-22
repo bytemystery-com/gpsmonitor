@@ -222,6 +222,8 @@ function doPeriodic()
 							v = val.toFixed(2) + " °";
 							if (gps.mv !== undefined && gps.mv !== null) {
 								v += " / " + gps.mv.toFixed(2) + " °"
+							} else {
+								v += " / --- "
 							}
 						}
 						return v

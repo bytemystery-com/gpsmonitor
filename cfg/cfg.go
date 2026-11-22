@@ -62,6 +62,10 @@ const (
 	KEY_SYSTEM_RESTART_POFF_TIME = "PoweroffTime"
 	KEY_SYSTEM_GPS_TRACE         = "GpsTrace"
 
+	SECTION_DATA      = "data"
+	KEY_DATA_FOLDER   = "Folder"
+	KEY_DATA_INTERVAL = "Interval"
+
 	SECTION_HARDWARE            = "hardware"
 	KEY_HARDWARE_UART_DEV       = "UartDev"
 	KEY_HARDWARE_BAUD_RATE      = "BaudRate"
@@ -91,6 +95,8 @@ const (
 	DEF_UART_STOP_BITS              = 0
 	DEF_RESTART_POFF_TIME           = 60 // sec
 	DEF_GPS_TRACE                   = false
+	DEF_DATA_FOLDER                 = "/data"
+	DEF_DATA_INTERVAL               = 5 // sec
 )
 
 type Cfg struct {
@@ -246,6 +252,9 @@ func (c *Cfg) SetDeaultCfg() {
 
 	c.SetIntValue(SECTION_SYSTEM, KEY_SYSTEM_RESTART_POFF_TIME, DEF_RESTART_POFF_TIME, "Restart after restart command [sec]")
 	c.SetBoolValue(SECTION_SYSTEM, KEY_SYSTEM_GPS_TRACE, DEF_GPS_TRACE, "Trace GPS data sentences")
+
+	c.SetStringValue(SECTION_DATA, KEY_DATA_FOLDER, DEF_DATA_FOLDER, "Folder for data (csv files)")
+	c.SetIntValue(SECTION_DATA, KEY_DATA_INTERVAL, DEF_DATA_INTERVAL, "Interval for data write [sec]")
 
 	c.SetStringValue(SECTION_HARDWARE, KEY_HARDWARE_UART_DEV, DEF_UART_DEV, "UART device")
 	c.SetIntValue(SECTION_HARDWARE, KEY_HARDWARE_BAUD_RATE, DEF_UART_BAUD_RATE, "Baudrate (0=auto, 9600, 38400, 115200, 460800)")

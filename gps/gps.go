@@ -1160,7 +1160,7 @@ func (gps *Gps) getQualityFromLetter(s string) Quality {
 
 func (gps *Gps) parseRMC(sArray []string) (*RMC, error) {
 	l := len(sArray)
-	if l != 14 {
+	if l != 14 && l != 13 {
 		return nil, fmt.Errorf("unexpected number of fields")
 	}
 
@@ -1208,7 +1208,7 @@ func (gps *Gps) parseRMC(sArray []string) (*RMC, error) {
 
 func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 	l := len(sArray)
-	if l != 9 && l != 8 {
+	if l != 8 {
 		return nil, fmt.Errorf("unexpected number of fields")
 	}
 	g := GLL{
@@ -1234,9 +1234,7 @@ func (gps *Gps) parseGLL(sArray []string) (*GLL, error) {
 		g.Valid = true
 	}
 
-	if l > 8 {
-		g.Quality = gps.getQualityFromLetter(sArray[7])
-	}
+	g.Quality = gps.getQualityFromLetter(sArray[7])
 
 	return &g, nil
 }
@@ -1970,7 +1968,7 @@ func (gps *Gps) qtmParseVersion(sArray []string) (*QTMVersion, error) {
 func (gps *Gps) qtmSwitchOffPPS() error {
 	if gps.qtmVersion != nil {
 		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR752,0,100")))
-		// _, err := gps.writer.Write([]byte(gps.buildNmeaCmd("PQTMCFGPPS,R,1")))
+		// _, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMCFGPPS,R,1")))
 		return err
 	}
 	return fmt.Errorf("no version information available")
@@ -2093,7 +2091,31 @@ func (gps *Gps) qtmSetSatCfg() error {
 
 func (gps *Gps) qtmGetSatCfg() error {
 	if gps.qtmVersion != nil {
-		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("PQTMCFGCNST,R")))
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMCFGCNST,R")))
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("version not available")
+	}
+	return nil
+}
+
+func (gps *Gps) qtmGetNavMode() error {
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR081")))
+		if err != nil {
+			return err
+		}
+	} else {
+		return fmt.Errorf("version not available")
+	}
+	return nil
+}
+
+func (gps *Gps) qtmSetNavMode(mode int) error {
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(fmt.Sprintf("$PAIR080, %d", mode))))
 		if err != nil {
 			return err
 		}
@@ -2108,6 +2130,7 @@ func (gps *Gps) qtmSendCfg() {
 	// gps.qtmSetBaudrate(38400)
 	// gps.qtmSetSatCfg()
 	gps.qtmGetSatCfg()
+	// gps.qtmGetNavMode()
 
 	gps.qtmSwitchOnGST()
 	gps.qtmSwitchOffPPS()

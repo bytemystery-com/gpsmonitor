@@ -43,6 +43,7 @@ import (
 	"gpsmonitord/data"
 	"gpsmonitord/gps"
 	"gpsmonitord/raspi"
+	"gpsmonitord/sd"
 	"gpsmonitord/webserver"
 
 	"go.bug.st/serial"
@@ -191,7 +192,7 @@ begin:
 	dev := Data.Config.GetStringValue(cfg.SECTION_HARDWARE, cfg.KEY_HARDWARE_UART_DEV, cfg.DEF_UART_DEV)
 	if baudRate <= 0 {
 		// Auto detect
-		baudRates := []int{38400, 115200, 460800, 57600, 9600, 4800, 230400}
+		baudRates := []int{38400, 115200, 460800, 57600, 19200, 9600, 4800, 230400, 74880, 28800, 921600}
 		var port serial.Port
 		for _, br := range baudRates {
 			mode.BaudRate = br
@@ -239,59 +240,70 @@ begin:
 	}
 	port := raspi.NewCountedPort(p, mode)
 	Data.SerMon = port
+
+	// GPS
 	g, err := gps.NewGps(port, port, func() {
 		port.ResetOutputBuffer()
 		port.ResetInputBuffer()
 	})
 	g.Trace = Data.Config.GetBoolValue(cfg.SECTION_SYSTEM, cfg.KEY_SYSTEM_GPS_TRACE, cfg.DEF_GPS_TRACE)
+	Data.Gps = g
 
 	if err != nil {
 		port.Close()
 		return
 	}
-	Data.Gps = g
-	go g.Start(nil)
+
+	// SD
+	Data.SdData, err = sd.NewSdData(Data.Config)
+	if err != nil {
+		return
+	}
 
 	var callBacks WebCallbacksImpl
 	Data.WebServer = webserver.NewWebServer(callBacks, Data.Config, Data.SerMon)
 	webError := make(chan error, 2)
 	Data.WebServer.StartWebServer(webError)
 
-	/*
-		for {
-			time.Sleep(250 * time.Millisecond)
-			if Data.Gps.GpsSumData.IsReady.Load() {
-				g.GpsSumData.Print()
-				// sats := g.GetSattelites()
-				// log.Printf("Sats: %d", len(sats))
-					for _, item := range sats {
-						item.Print()
-					}
-			}
+	go doSd()
 
-			notify := make(chan any, 20)
-			go g.Sart(notify)
-			for val := range notify {
-				// fmt.Printf("Received: %T\n", val)
-				switch data := val.(type) {
-				case *gps.GGA:
-					data.Print()
-				case *gps.RMC:
-					data.Print()
-				case *gps.GLL:
-					data.Print()
-				case *gps.GSA:
-					data.Print()
-				case *gps.VTG:
-					data.Print()
-				case *gps.GSV:
-					data.Print()
-				case *gps.TXT:
-					data.Print()
-				case *gps.GST:
-					data.Print()
-				}
+	// notify := make(chan any, 20)
+	go g.Start(nil)
+	/*
+		for val := range notify {
+			// fmt.Printf("Received: %T\n", val)
+			switch data := val.(type) {
+			case *gps.GGA:
+				data.Print()
+			case *gps.RMC:
+				data.Print()
+			case *gps.GLL:
+				data.Print()
+			case *gps.GSA:
+				data.Print()
+			case *gps.VTG:
+				data.Print()
+			case *gps.GSV:
+				data.Print()
+			case *gps.TXT:
+				data.Print()
+			case *gps.GST:
+				data.Print()
 			}
+		}
+	*/
+
+	/*
+			for {
+				time.Sleep(250 * time.Millisecond)
+				if Data.Gps.GpsSumData.IsReady.Load() {
+					g.GpsSumData.Print()
+					// sats := g.GetSattelites()
+					// log.Printf("Sats: %d", len(sats))
+						for _, item := range sats {
+							item.Print()
+						}
+				}
 		}
 	*/
 
@@ -299,4 +311,49 @@ begin:
 	fmt.Printf("WebError %v", x)
 
 	fmt.Println("Exit")
+}
+
+func doSd() {
+	for !raspi.RebbotRequested.Load() {
+		used := 0
+		sats := Data.Gps.GetSattelites(&used)
+		total := len(sats)
+		sdEntry := sd.SdDataEntry{
+			Longitude:    getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Longitude),
+			Latitude:     getFloat64ForJsonFromAtomic(&Data.Gps.GpsSumData.Latitude),
+			Altitude:     getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Altitude),
+			Speed:        getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.Speed),
+			Course:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.CourseTrue),
+			MagVar:       getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.MagVar),
+			Mode:         getIntForJsonFromAtomic(&Data.Gps.GpsSumData.NavMode),
+			Quality:      getIntForJsonFromAtomic(&Data.Gps.GpsSumData.Quality),
+			NumUsedSats:  &used,
+			NumTotalSats: &total,
+			StdLongitude: getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLongitude),
+			StdLatitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdLatitude),
+			StdAltitude:  getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.StdAltitude),
+			HDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.HDop),
+			VDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.VDop),
+			PDop:         getFloat32ForJsonFromAtomic(&Data.Gps.GpsSumData.PDop),
+			DateTime:     getTimeForJsonFromAtomic(&Data.Gps.GpsSumData.Time),
+			Errors:       getUintForJsonFromAtomic(&Data.Gps.GpsSumData.Errors),
+		}
+		ubloxVer := Data.Gps.GetUbxVersion()
+		if ubloxVer != nil {
+			b, err := ubloxVer.Model.MarshalText()
+			if err == nil {
+				sdEntry.Model = string(b)
+			}
+		} else {
+			qtmVer := Data.Gps.GetQtmVersion()
+			if qtmVer != nil {
+				b, err := qtmVer.Model.MarshalText()
+				if err == nil {
+					sdEntry.Model = string(b)
+				}
+			}
+		}
+		Data.SdData.WriteEntry(&sdEntry)
+		time.Sleep(time.Duration(Data.Config.GetIntValue(cfg.SECTION_DATA, cfg.KEY_DATA_INTERVAL, cfg.DEF_DATA_INTERVAL)) * time.Second)
+	}
 }

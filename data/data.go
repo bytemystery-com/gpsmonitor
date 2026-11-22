@@ -28,6 +28,7 @@ import (
 	"gpsmonitord/cfg"
 	"gpsmonitord/gps"
 	"gpsmonitord/raspi"
+	"gpsmonitord/sd"
 	"gpsmonitord/webserver"
 )
 
@@ -36,4 +37,5 @@ type Data struct {
 	Config    *cfg.Cfg
 	Gps       *gps.Gps
 	SerMon    *raspi.CountedPort
+	SdData    *sd.SdData
 }
