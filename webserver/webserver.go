@@ -36,6 +36,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,7 @@ import (
 	"gpsmonitord/gps"
 	"gpsmonitord/helper"
 	"gpsmonitord/raspi"
+	"gpsmonitord/sd"
 )
 
 //go:embed ssl/gpsmonitord.crt
@@ -104,15 +106,17 @@ type WebServer struct {
 	httpServer   *http.Server
 	httpsServer  *http.Server
 	cfg          *cfg.Cfg
+	sdData       *sd.SdData
 	serMon       *raspi.CountedPort
 	sessions     map[string]time.Time
 	sessionsLock sync.RWMutex
 }
 
-func NewWebServer(callBacks WebCallBacks, cfg *cfg.Cfg, serMon *raspi.CountedPort) *WebServer {
+func NewWebServer(callBacks WebCallBacks, cfg *cfg.Cfg, sdData *sd.SdData, serMon *raspi.CountedPort) *WebServer {
 	return &WebServer{
 		callBacks: callBacks,
 		cfg:       cfg,
+		sdData:    sdData,
 		serMon:    serMon,
 		sessions:  make(map[string]time.Time, 10),
 	}
@@ -363,6 +367,39 @@ func getStringFromInt[T ~int | ~uint | ~int32 | ~uint32 | ~int64 | ~uint64 | ~in
 	return fmt.Sprintf("%d", *v)
 }
 
+// https://www.gpsvisualizer.com/
+// https://gpx.studio/
+// https://umap.openstreetmap.de
+func (ws *WebServer) export(w http.ResponseWriter, r *http.Request) {
+	start := r.URL.Query().Get("s")
+	end := r.URL.Query().Get("e")
+
+	s, err := time.ParseInLocation("2006-01-02T15:04", start, time.Local)
+	if err != nil {
+		http.Error(w, "Invalid start date", http.StatusBadRequest)
+		return
+	}
+
+	e, err := time.ParseInLocation("2006-01-02T15:04", end, time.Local)
+	if err != nil {
+		http.Error(w, "Invalid end date", http.StatusBadRequest)
+		return
+	}
+
+	// Get Data
+	b, err := ws.sdData.GetData(s, e)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	filename := "track.gpx"
+	w.Header().Set("Content-Type", "application/gpx+xml")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+
+	w.Write(b)
+}
+
 func (ws *WebServer) query(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	q := r.URL.Query().Get("q")
@@ -573,7 +610,10 @@ func (ws *WebServer) StartWebServer(done chan<- error) {
 	mux.HandleFunc("GET /update", ws.getUpdate)
 	mux.HandleFunc("POST /firmwareupdate", ws.fwUpdate)
 	mux.HandleFunc("GET /restart", ws.restart)
+	mux.HandleFunc("GET /listsd", ws.listSd)
+	mux.HandleFunc("GET /getsd", ws.getSd)
 	mux.HandleFunc("GET /query", ws.query)
+	mux.HandleFunc("GET /export", ws.export)
 
 	handler := ws.auth(mux)
 	// handler = ws.log(handler)
@@ -719,4 +759,37 @@ func (ws *WebServer) auth(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (ws *WebServer) getSd(w http.ResponseWriter, r *http.Request) {
+	file := r.URL.Query().Get("file")
+	if file == "" {
+		http.Error(w, "missing file", http.StatusBadRequest)
+		return
+	}
+	f, info, err := ws.sdData.GetSd(file)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer f.Close()
+
+	if strings.EqualFold(filepath.Ext(info.Name()), ".png") {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Disposition", "inline")
+	} else {
+		w.Header().Set("Content-Disposition",
+			fmt.Sprintf(`attachment; filename="%s"`, info.Name()))
+	}
+	http.ServeContent(w, r, info.Name(), info.ModTime(), f)
+}
+
+func (ws *WebServer) listSd(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	dir := r.URL.Query().Get("dir")
+	json, err := ws.sdData.ListSd(dir)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+	_, _ = w.Write([]byte(json))
 }

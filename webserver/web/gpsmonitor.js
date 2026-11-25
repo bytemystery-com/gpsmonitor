@@ -34,12 +34,13 @@ mapOpenStreet = new OpenStreetMap('gps_map')
 // mapGoogleMap = new GoogleMap('google_map', 10)
 
 // -------------------------------------------------------------------------------
-const version = "v1.0";
+const version = "v1.1";
 
 let updateDataTimer = null;
 const debug = 0;
 let updateInterval = 5000;
 let data_request = null;
+let file_request = null;
 const gpsViews = new Array();
 
 gpsView = new GpsView("gps_");
@@ -62,9 +63,11 @@ function doLoad()
 	doLoadGpsViews();
 	doStart();
 	doPeriodic();
+	doLoadFiles("");
 	
 	if ((tmp = document.getElementById("version")))
 		tmp.textContent = version;
+
 }
 
 function doLoadGpsViews()
@@ -81,6 +84,51 @@ function doUpdateGpsViews(sats)
 	{
 		view.doUpdate(sats);
 	});
+}
+
+function doExport(){
+	let ctrl, startDateCtrl = null, endDateCtrl = null;
+	let startDateArray, endDateArray;
+	startDateCtrl = document.getElementById("startdate");
+	endDateCtrl = document.getElementById("enddate");
+	const params = new URLSearchParams({
+		s: startDateCtrl.value,
+		e: endDateCtrl.value,
+	});
+
+	const request = new XMLHttpRequest();
+	request.open("GET", "export?" + params.toString());
+
+	noCacheInRequest(request);
+	request.responseType = "blob";
+
+	request.onload = function() {
+		if (request.status === 200) {
+			let filename = "download";
+
+			const disposition = request.getResponseHeader("Content-Disposition");
+			const match = disposition?.match(/filename="?([^";]+)"?/i);
+
+			if (match) {
+				filename = match[1];
+			}			
+
+			const blob = request.response;
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement("a");
+
+			a.href = url;
+			a.download = filename;
+
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+
+			setTimeout(() => URL.revokeObjectURL(url), 1000);
+		}
+	};
+
+	request.send();
 }
 
 function doRestart()
@@ -458,3 +506,61 @@ function setValue(id, container, val, convert) {
 	}
 }
 
+function doLoadFiles(start_dir)
+{
+	if (file_request == null)
+	{
+		file_request = new XMLHttpRequest();
+		file_request.open("GET","listsd?dir=" + start_dir, true);
+		noCacheInRequest(file_request);
+		file_request.responseType = "text";
+		file_request.onerror = function()
+		{
+			log("Error in file request");
+			file_request = null;
+		}
+		file_request.onabort = function()
+		{
+			log("Abort file request");
+			file_request = null;
+		}
+
+		file_request.onload = function()
+		{
+			if (file_request.response)
+			{
+				const json = JSON.parse(file_request.response);
+				log(file_request.response);
+				if (tmp = document.getElementById("files"))
+				{
+					while (tmp.firstChild)
+						tmp.removeChild(tmp.firstChild);
+					for (let index=0; index < json.dirs.length; index++)
+					{
+						const item = document.createElement("a");
+						item.setAttribute("class", "dir");
+						// item.setAttribute("href", "");
+						item.setAttribute("onclick", "doLoadFiles(\"" + json.path + "/" + json.dirs[index].name + "\")");
+						item.innerHTML = json.dirs[index].name;
+						tmp.appendChild(item);
+						tmp.appendChild(document.createElement("br"));
+					}
+					for (let index=0; index < json.files.length; index++)
+					{
+						const item = document.createElement("a");
+						item.setAttribute("class", "file");
+						item.setAttribute("href", "getsd?file=" + json.path + "/" + json.files[index].name);
+						if (!json.files[index].name.toLowerCase().endsWith(".png"))
+    						item.setAttribute("download", json.files[index].name);						
+						item.innerHTML = json.files[index].name;
+						tmp.appendChild(item);
+						tmp.appendChild(document.createElement("br"));
+					}
+				}
+			} // response != NULL
+
+			file_request = null;
+		}
+		file_request.send();
+	}
+}

@@ -245,6 +245,27 @@ GPS Monitor
 
 			<div class="break">&nbsp;</div>
 			
+			<fieldset id="date_group" name="date_group" class="box fieldset_box">
+				<legend class="legend">Export</legend>
+				<div class="inputblock dateblock">
+					<div>
+						<div>
+							<label class="label" for="startdate">Start</label>
+							<input class="date" type="datetime-local" id="startdate" name="startdate">
+						</div>
+						<div>
+							<label class="label" for="enddate">End</label>
+							<input class="date" type="datetime-local" id="enddate" name="enddate">
+						</div>
+					</div>
+					<div>
+						<button class="export_btn" type="button" onclick="doExport()">Export...</button>
+					</div>
+				</div>
+			</fieldset>
+
+			<div class="break">&nbsp;</div>
+			
 			<fieldset class="box"><legend class="legend">Firmware update</legend>
 				<form class="status" id="config" enctype="multipart/form-data" action="firmwareupdate" method="POST" onsubmit="return doUpdate()">
 					<div class="block_update">
@@ -258,7 +279,7 @@ GPS Monitor
 			<div class="break">&nbsp;</div>
 			
 			<div class="files" id="files"></div>
-			
+
 			<hr class="seperator"/>
 			<div class="footer">© 2018-2027 by Reiner Pröls, Germany • Schleißheimerstraße 131, 80797 München</div>
 			<div class="version" id="version"></div>

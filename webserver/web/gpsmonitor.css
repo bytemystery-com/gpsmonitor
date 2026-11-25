@@ -279,3 +279,152 @@ Trebuchet MS Sans-serif
         width: 22em;
     }
 }
+
+/* Date  */
+.inputblock
+{
+	float: left;
+	margin-right: 20px;
+}
+
+.inputblock_last
+{
+	margin-right: 10px;
+}
+
+.inputfield
+{
+	position: relative;
+	width: auto;
+	margin-top: 5px;
+}
+
+.dateblock {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: fit-content; /* Container passt sich exakt der Breite der oberen Zeile an */
+}
+
+/* Obere Zeile: Start & End */
+.dateblock > div:first-child {
+    display: flex;
+    flex-direction: row;
+    gap: 15px;
+}
+
+.dateblock > div:first-child > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* Untere Zeile: Select & Button über die volle Breite */
+.dateblock > div:last-child {
+    display: flex;
+    flex-direction: row;
+    gap: 15px;          /* Gleicher Abstand wie oben zwischen Start und End */
+    width: 100%;
+}
+
+/* Macht den Span-Wrapper des Selects flexibel */
+.dateblock .sat_checkbox-item {
+    flex: 1;            /* Nimmt exakt die linke Hälfte ein (wie "Start") */
+    display: flex;
+}
+
+/* Select-Feld füllt seinen Span komplett aus */
+.dateblock .gps_sat_used {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Button nimmt exakt die rechte Hälfte ein (wie "End") */
+.dateblock .svg_save {
+    flex: 1;            /* Nimmt exakt die rechte Hälfte ein (wie "End") */
+    box-sizing: border-box;
+}
+
+
+/* Obere Zeile */
+.dateblock > div:first-child {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+/* Untere Zeile */
+.dateblock > div:last-child {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    width: 100%;
+}
+
+/* Button */
+.dateblock .export_btn {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.export_btn {
+    width: 100%;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background-color: #ffffff;
+    color: #495057;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+    margin-left: auto;
+    max-width: none;
+}
+
+.export_btn:hover {
+    background-color: #f0f7ff;
+    border-color: #a6d0ff;
+    color: #0056b3;
+}
+
+.export_btn:active {
+    transform: scale(0.96);    /* Button drückt sich im Grid leicht ein */
+    background-color: #d0e5ff; /* Etwas dunkleres Blau beim Drücken */
+}
+/* */
+
+
+/* Files / Dirs */
+.dir
+{
+	cursor: pointer;
+	text-decoration: underline;
+}
+
+.dir::before
+{
+	content: url("folder.png");
+	padding-right: 5px;
+	vertical-align: -50%;
+}
+
+.file::before
+{
+	content: url("file.png");
+	padding-right: 5px;
+	vertical-align: -50%;
+}
+
+.files
+{
+	width: 22em;
+	height: 24em;
+	overflow-y: auto;
+}

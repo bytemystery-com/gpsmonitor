@@ -261,7 +261,7 @@ begin:
 	}
 
 	var callBacks WebCallbacksImpl
-	Data.WebServer = webserver.NewWebServer(callBacks, Data.Config, Data.SerMon)
+	Data.WebServer = webserver.NewWebServer(callBacks, Data.Config, Data.SdData, Data.SerMon)
 	webError := make(chan error, 2)
 	Data.WebServer.StartWebServer(webError)
 
