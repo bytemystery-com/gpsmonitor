@@ -19,6 +19,9 @@ fi
 
 
 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" .
+# optimize for PI5 only
+# GOOS=linux GOARCH=arm64 GOARM64=v8.2 go build -trimpath -ldflags="-s -w" .
+
 sudo systemctl stop gpsmonitord.service
 sudo cp gpsmonitord /usr/local/bin
 sudo systemctl start gpsmonitord.service
