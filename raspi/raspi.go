@@ -194,7 +194,7 @@ func GetTemperature() (int, error) {
 	return temp, nil
 }
 
-// in mV
+// in mV (not in zero 2W)
 func GetVoltages() (v5, v3v3 int, err error) {
 	out, err := exec.Command("vcgencmd", "pmic_read_adc", "3V3_SYS_V", "EXT5V_V").Output()
 	if err != nil {
@@ -282,7 +282,7 @@ func Get5VVoltage() (int, error) {
 	return int(voltage*1000.0 + 0.5), nil
 }
 
-// 5A PD ok
+// 5A PD ok (not on zero 2W)
 // od -A n -d -j 2 --endian=big /proc/device-tree/chosen/power/max_current
 func GetMaxCurrent() (uint16, error) {
 	data, err := os.ReadFile("/proc/device-tree/chosen/power/max_current")
@@ -394,15 +394,25 @@ func GetRam() (used, total uint32, err error) {
 func Restart(config *cfg.Cfg) {
 	go func() {
 		RebbotRequested.Store(true)
-
 		time.Sleep(3 * time.Second)
-		cmd := exec.Command("sh", "-c", fmt.Sprintf("echo +%d > /sys/class/rtc/rtc0/wakealarm", config.GetIntValue(cfg.SECTION_SYSTEM, cfg.KEY_SYSTEM_RESTART_POFF_TIME, cfg.DEF_RESTART_POFF_TIME)))
-		err := cmd.Run()
+
+		_, err := os.Stat("/sys/class/rtc/rtc0/wakealarm")
 		if err == nil {
+			// Pi 5: RTC-Alarm setzen und hart herunterfahren (für I2C-Power-Cycle)
+			cmd := exec.Command("sh", "-c", fmt.Sprintf("echo +%d > /sys/class/rtc/rtc0/wakealarm", config.GetIntValue(cfg.SECTION_SYSTEM, cfg.KEY_SYSTEM_RESTART_POFF_TIME, cfg.DEF_RESTART_POFF_TIME)))
+			err = cmd.Run()
+			if err == nil {
+				config.SetIntValue(cfg.SECTION_RUN, cfg.KEY_RUN_REBOOT,
+					config.GetIntValue(cfg.SECTION_RUN, cfg.KEY_RUN_REBOOT, 0)+1, "")
+				config.Save()
+				exec.Command("systemctl", "poweroff").Run()
+			}
+		} else {
+			// Pi Zero 2 W: Keine RTC vorhanden -> direkt normaler Reboot
 			config.SetIntValue(cfg.SECTION_RUN, cfg.KEY_RUN_REBOOT,
 				config.GetIntValue(cfg.SECTION_RUN, cfg.KEY_RUN_REBOOT, 0)+1, "")
 			config.Save()
-			exec.Command("systemctl", "poweroff").Run()
+			err = exec.Command("systemctl", "reboot").Run()
 		}
 	}()
 }
