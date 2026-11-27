@@ -504,6 +504,8 @@ class GpsView {
 			return "Galileo E5 a"
 		case "GALILEO_E5B":
 			return "Galileo E5 b"
+		case "GALILEO_E6":
+			return "Galileo E6"
 		case "BEIDOU_B1I":
 			return "BeiDou B1 I"
 		case "BEIDOU_B1C":
@@ -512,6 +514,10 @@ class GpsView {
 			return "BeiDou B2 I"
 		case "BEIDOU_B2A": 
 			return "BeiDou B2 A"
+		case "BEIDOU_B2B": 
+			return "BeiDou B2 B"
+		case "BEIDOU_B3I": 
+			return "BeiDou B3 I"
 		case "QZSS_L1CA":
 			return "QZSS L1 C/A"
 		case "QZSS_L1S":

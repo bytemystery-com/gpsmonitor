@@ -132,11 +132,14 @@ const (
 	GALILEO_E1
 	GALILEO_E5A
 	GALILEO_E5B
+	GALILEO_E6
 
 	BEIDOU_B1I
 	BEIDOU_B1C
 	BEIDOU_B2I
 	BEIDOU_B2A
+	BEIDOU_B2B
+	BEIDOU_B3I
 
 	QZSS_L1CA
 	QZSS_L1S
@@ -173,6 +176,8 @@ func (signalId SignalId) String() string {
 		return "Galileo E5 a"
 	case GALILEO_E5B:
 		return "Galileo E5 b"
+	case GALILEO_E6:
+		return "Galileo E6"
 	case BEIDOU_B1C:
 		return "BeiDou B1 C"
 	case BEIDOU_B1I:
@@ -181,6 +186,10 @@ func (signalId SignalId) String() string {
 		return "BeiDou B2 I"
 	case BEIDOU_B2A:
 		return "BeiDou B2 A"
+	case BEIDOU_B2B:
+		return "BeiDou B2 B"
+	case BEIDOU_B3I:
+		return "BeiDou B3 I"
 	case QZSS_L1CA:
 		return "QZSS L1 C/A"
 	case QZSS_L1S:
@@ -225,6 +234,8 @@ func (signalId SignalId) MarshalText() (text []byte, err error) {
 		return []byte("GALILEO_E1"), nil
 	case GALILEO_E5A:
 		return []byte("GALILEO_E5A"), nil
+	case GALILEO_E6:
+		return []byte("GALILEO_E6"), nil
 	case GALILEO_E5B:
 		return []byte("GALILEO_E5B"), nil
 	case BEIDOU_B1I:
@@ -235,6 +246,10 @@ func (signalId SignalId) MarshalText() (text []byte, err error) {
 		return []byte("BEIDOU_B2I"), nil
 	case BEIDOU_B2A:
 		return []byte("BEIDOU_B2A"), nil
+	case BEIDOU_B2B:
+		return []byte("BEIDOU_B2B"), nil
+	case BEIDOU_B3I:
+		return []byte("BEIDOU_B3I"), nil
 	case QZSS_L1CA:
 		return []byte("QZSS_L1CA"), nil
 	case QZSS_L1S:
@@ -282,6 +297,8 @@ func (signalId *SignalId) UnmarshalText(text []byte) error {
 		*signalId = GALILEO_E5A
 	case "GALILEO_E5B":
 		*signalId = GALILEO_E5B
+	case "GALILEO_E6":
+		*signalId = GALILEO_E6
 	case "BEIDOU_B1I":
 		*signalId = BEIDOU_B1I
 	case "BEIDOU_B1C":
@@ -290,6 +307,10 @@ func (signalId *SignalId) UnmarshalText(text []byte) error {
 		*signalId = BEIDOU_B2I
 	case "BEIDOU_B2A":
 		*signalId = BEIDOU_B2A
+	case "BEIDOU_B2B":
+		*signalId = BEIDOU_B2B
+	case "BEIDOU_B3I":
+		*signalId = BEIDOU_B3I
 	case "QZSS_L1CA":
 		*signalId = QZSS_L1CA
 	case "QZSS_L1S":
@@ -410,6 +431,8 @@ func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
 			return BEIDOU_B2A
 		case NetworkQZSS:
 			return QZSS_L2CM
+		case NetworkGalileo:
+			return GALILEO_E6
 		}
 	case 6:
 		switch gpsNetwork {
@@ -431,6 +454,8 @@ func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
 		switch gpsNetwork {
 		case NetworkGPS:
 			return GPS_L5Q
+		case NetworkBeiDou:
+			return BEIDOU_B3I
 		case NetworkQZSS:
 			return QZSS_L5Q
 		}
@@ -445,6 +470,7 @@ func GetSignalId(signalId int, gpsNetwork GPSNetwork) SignalId {
 	return SIGNALID_UNKNOWN
 }
 
+// should not be called !!!
 func getGpsNetworkFromSatId(id int) GPSNetwork {
 	if id >= 1 && id <= 32 {
 		return NetworkGPS
@@ -1967,8 +1993,18 @@ func (gps *Gps) qtmParseVersion(sArray []string) (*QTMVersion, error) {
 
 func (gps *Gps) qtmSwitchOffPPS() error {
 	if gps.qtmVersion != nil {
-		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR752,0,100")))
-		// _, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMCFGPPS,R,1")))
+		s := ""
+		switch gps.qtmVersion.Model {
+		case QTM_LG290P:
+			s = "$PQTMCFGPPS,1,0"
+		default:
+			s = "$PAIR752,0,100"
+			// s = "$PQTMCFGPPS,R,1"
+		}
+		if s == "" {
+			return fmt.Errorf("unavailable")
+		}
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(s)))
 		return err
 	}
 	return fmt.Errorf("no version information available")
@@ -1979,15 +2015,18 @@ func (gps *Gps) qtmSwitchOnGST() error {
 		s := ""
 		switch gps.qtmVersion.Model {
 		case QTM_LC29HAA, QTM_LC29HAI:
-			s = gps.buildNmeaCmd("$PAIR062,8,1")
+			s = "$PAIR062,8,1"
 		case QTM_LC29HDA:
-			s = gps.buildNmeaCmd("$PQTMCFGMSGRATE,W,GST,1")
+			s = "$PQTMCFGMSGRATE,W,GST,1"
+		case QTM_LG290P:
+			s = "$PQTMCFGMSGRATE,W,GST,1"
+
 		default:
 			// BA, BS, CA, EA und UNKNOWN unterstützen kein GST
 			return fmt.Errorf("no GST support")
 		}
 		if s != "" {
-			_, err := gps.writer.Write([]byte(s))
+			_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(s)))
 			return err
 		}
 	}
@@ -1999,17 +2038,19 @@ func (gps *Gps) qtmSetUpdateRate() error {
 		s := ""
 		switch gps.qtmVersion.Model {
 		case QTM_LC29HAA, QTM_LC29HEA:
-			s = gps.buildNmeaCmd("$PAIR050,1000")
+			s = "$PAIR050,1000"
+		case QTM_LG290P:
+			s = "$PQTMCFGFIXRATE,W,1000"
 		default:
 			return fmt.Errorf("no support")
 		}
 		if s != "" {
-			_, err := gps.writer.Write([]byte(s))
+			_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(s)))
 			if err != nil {
 				return err
 			}
 			time.Sleep(250 * time.Millisecond)
-			err = gps.qtmSave()
+			err = gps.qtmSaveQtm()
 			if err != nil {
 				return err
 			}
@@ -2020,51 +2061,108 @@ func (gps *Gps) qtmSetUpdateRate() error {
 }
 
 func (gps *Gps) qtmReboot() error {
-	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR023")))
-	if err != nil {
-		return err
+	switch gps.qtmVersion.Model {
+	case QTM_LG290P:
+		return gps.qtmRebootQtm()
+	default:
+		return gps.qtmRebootPair()
 	}
-	time.Sleep(250 * time.Millisecond)
-	return nil
+}
+
+func (gps *Gps) qtmRebootPair() error {
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR023")))
+		if err != nil {
+			return err
+		}
+		time.Sleep(250 * time.Millisecond)
+		return nil
+	}
+	return fmt.Errorf("version not available")
+}
+
+func (gps *Gps) qtmRebootQtm() error {
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMSRR")))
+		if err != nil {
+			return err
+		}
+		time.Sleep(250 * time.Millisecond)
+		return nil
+	}
+	return fmt.Errorf("version not available")
 }
 
 func (gps *Gps) qtmSave() error {
-	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR513")))
-	if err != nil {
-		return err
+	switch gps.qtmVersion.Model {
+	case QTM_LG290P:
+		return gps.qtmSaveQtm()
+	default:
+		return gps.qtmSavePair()
 	}
-	time.Sleep(250 * time.Millisecond)
-	return nil
+}
+
+func (gps *Gps) qtmSavePair() error {
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PAIR513")))
+		if err != nil {
+			return err
+		}
+		time.Sleep(250 * time.Millisecond)
+		return nil
+	}
+	return fmt.Errorf("version not available")
 }
 
 func (gps *Gps) qtmSaveQtm() error {
-	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMSAVEPAR")))
-	if err != nil {
-		return err
+	if gps.qtmVersion != nil {
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd("$PQTMSAVEPAR")))
+		if err != nil {
+			return err
+		}
+		time.Sleep(250 * time.Millisecond)
+		return nil
 	}
-	time.Sleep(250 * time.Millisecond)
-	return nil
+	return fmt.Errorf("version not available")
 }
 
 func (gps *Gps) qtmSetBaudrate(baudRate int) error {
-	_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(fmt.Sprintf("$PAIR864,0,0,%d", baudRate))))
-	if err != nil {
-		return err
+	if gps.qtmVersion != nil {
+		str := ""
+		saveReboot := false
+		switch gps.qtmVersion.Model {
+		case QTM_LG290P:
+			str = fmt.Sprintf("$PQTMCFGUART,W,%d", baudRate)
+		default:
+			str = fmt.Sprintf("$PAIR864,0,0,%d", baudRate)
+			saveReboot = true
+		}
+		if str == "" {
+			return fmt.Errorf("unknown")
+		}
+		_, err := gps.writer.Write([]byte(gps.buildNmeaCmd(str)))
+		if err != nil {
+			return err
+		}
+		if saveReboot {
+			time.Sleep(250 * time.Millisecond)
+			err = gps.qtmSave()
+			if err != nil {
+				return err
+			}
+			time.Sleep(250 * time.Millisecond)
+			return gps.qtmReboot()
+		}
+		return nil
 	}
-	time.Sleep(250 * time.Millisecond)
-	err = gps.qtmSave()
-	if err != nil {
-		return err
-	}
-	time.Sleep(250 * time.Millisecond)
-	return gps.qtmReboot()
+	return fmt.Errorf("version not available")
 }
 
 func (gps *Gps) qtmSetSatCfg() error {
 	if gps.qtmVersion != nil {
 		str := ""
 		switch gps.qtmVersion.Model {
-		case QTM_LC29HAA:
+		case QTM_LC29HAA, QTM_LG290P:
 			str = "$PQTMCFGCNST,W,1,1,1,1,1,1" // all
 		case QTM_LC29HBA, QTM_LC29HCA, QTM_LC29HDA, QTM_LC29HEA:
 			str = "$PQTMCFGCNST,W,1,1,1,1,1,0"

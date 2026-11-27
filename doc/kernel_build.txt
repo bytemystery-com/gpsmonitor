@@ -1,0 +1,90 @@
+sudo apt install libssl-dev
+sudo apt install gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+git clone --depth=1 -b rpi-7.3.y https://github.com/raspberrypi/linux.git
+export ARCH=arm64
+export CROSS_COMPILE=aarch64-linux-gnu-
+make bcm2711_defconfig
+
+# CONFIG_BLK_DEV_IO_TRACE is not set
+* Kernel hacking / Tracers off
+	# CONFIG_FTRACE is not set
+	# CONFIG_FTRACE_SYSCALLS is not set
+	# CONFIG_FUNCTION_PROFILER is not set
+	# CONFIG_SCHED_TRACER is not set
+* Kernel hacking / Generic Kernel Debugging Instruments off
+	# CONFIG_KDB_KEYBOARD is not set
+	# CONFIG_KGDB is not set
+	# CONFIG_KGDB_KDB is not set
+# CONFIG_LEDS_TRIGGER_CPU is not set
+# CONFIG_NET_ACT_CTINFO is not set
+# CONFIG_KVM is not set
+* Virtualization / Kernel-based Virtual Machine (KVM) support
+	# CONFIG_VIRTUALIZATION is not set
+# CONFIG_LATENCYTOP is not set
+CONFIG_LOCALVERSION_AUTO on
+CONFIG_LOCALVERSION="-weatherd"
+
+time make -j$(nproc) bindeb-pkg DPKG_FLAGS=-d
+time make -j$(nproc) Image.gz modules dtbs
+arch/arm64/boot/Image.gz
+
+tar -cJf kernel.txz arch/arm64/boot/Image.gz arch/arm64/boot/dts/broadcom/*.dtb arch/arm64/boot/dts/overlays/*.dtb* arch/arm64/boot/dts/overlays/README ../*.deb
+
+
+sudo dpkg -i linux-headers-*.deb
+sudo dpkg -i linux-image-*.deb
+sudo dpkg -i linux-libc-dev
+
+sudo mkdir /boot/firmware/gpsmonitor
+sudo mkdir /boot/firmware/gpsmonitor/overlays
+sudo cp arch/arm64/boot/Image.gz /boot/firmware/gpsmonitor/kernel-gpsmonitor.img
+sudo cp arch/arm64/boot/dts/broadcom/*.dtb /boot/firmware/gpsmonitor/
+sudo cp arch/arm64/boot/dts/overlays/*.dtb* /boot/firmware/gpsmonitor/overlays
+sudo cp arch/arm64/boot/dts/overlays/README /boot/firmware/gpsmonitor/overlays
+sudo cp -v /boot/firmware/cmdline.txt /boot/firmware/gpsmonitor/cmdline.txt
+
+sudo mkinitramfs -o /boot/firmware/gpsmonitor/initramfs-gpsmonitor 7.3.6-gpsmonitor-zero-g85ff281d5380
+
+
+
+in /boot/firmware/config.txt
+
+******************************************************
+os_prefix=gpsmonitor/
+kernel=kernel-gpsmonitor.img
+initramfs initramfs-gpsmonitor followkernel
+
+enable_uart=1
+dtoverlay=disable-bt
+dtparam=i2c_arm=off
+dtparam=act_led_trigger=none
+
+******************************************************
+aus /boot/firmware/weatherstation/cmdline.txt
+console=serial0,115200 raus
+und video=HDMI-A-1:d rein
+******************************************************
+
+systemctl --user list-units --type=service
+
+sudo systemctl disable --now bluetooth.service
+sudo systemctl disable --now getty@tty1.service
+sudo systemctl disable --now serial-getty@ttyAMA0.service
+# sudo systemctl disable --now avahi-daemon.service avahi-daemon.socket
+
+-- REBOOT --
+sudo SKIP_KERNEL=1 PRUNE_MODULES=1 rpi-update
+sudo apt update
+sudo apt -y full-upgrade
+sudo apt -y auto-remove
+
+-- WLAN HOTSPOT CONNECT --
+rfkill list
+nmcli device status
+sudo nmcli device wifi rescan
+nmcli device wifi list
+sudo nmcli device wifi connect "reporo" --ask ifname wlan0 bssid 7C:FF:4D:E7:42:4F
+
+sudo nmcli -s -f 802-11-wireless-security.psk connection show reporox
+sudo nmcli connection modify reporox wifi-sec.key-mgmt wpa-psk wifi-sec.psk 'DEIN_PASSWORT'
